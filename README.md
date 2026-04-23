@@ -1,32 +1,10 @@
 # zsh-pkg-update-nag
 
-A zsh plugin that, at the start of a fresh interactive session, checks whether any of your globally-installed packages have updates available and offers to install them behind a quick `Y/n/s` confirmation. Rate-limited to every 4 hours (configurable) so it stays useful without becoming annoying.
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Shell: zsh](https://img.shields.io/badge/shell-zsh%205%2B-green)](https://www.zsh.org/)
+[![Platforms: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)]()
 
-Supports **Homebrew**, **npm (global)**, **uv tools**, and **RubyGems**. Managers are enabled independently, each with a choice of `all` (scan everything), `off`, or an explicit allowlist.
-
-## Install
-
-### oh-my-zsh
-
-```sh
-git clone https://github.com/<your-user>/zsh-pkg-update-nag \
-  "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-pkg-update-nag"
-```
-
-Then add `zsh-pkg-update-nag` to your `plugins=(...)` array in `~/.zshrc`.
-
-### Standalone (any zsh)
-
-```sh
-git clone https://github.com/<your-user>/zsh-pkg-update-nag ~/.zsh-pkg-update-nag
-echo 'source ~/.zsh-pkg-update-nag/zsh-pkg-update-nag.plugin.zsh' >> ~/.zshrc
-```
-
-Open a new terminal. On first run, the plugin writes a stampfile and exits silently — the first real check happens one interval later. Run `zsh-pkg-update-nag --now` to check immediately.
-
-## What you'll see
-
-When something's outdated:
+A zsh plugin that nags you — gently, and no more than once every 4 hours — about outdated global packages when you open a new terminal, and offers to update them behind a single `Y/n/s` confirmation.
 
 ```
 ▲ 3 updates available
@@ -40,9 +18,35 @@ When something's outdated:
   Update all? [Y/n/s] ›
 ```
 
-- **`Y`** (or Enter) — runs every upgrade in sequence.
-- **`n`** — skips everything; no re-nag for the rest of the interval.
-- **`s`** — drops into per-package `Y/n` across all managers.
+- **`Y`** (or Enter) — run every upgrade in sequence, grouped by manager.
+- **`n`** — skip everything; no re-nag until the next interval.
+- **`s`** — drop into per-package `Y/n` across all managers.
+
+Supports **Homebrew** (formulae *and* casks), **npm (global)**, **uv tools**, and **RubyGems**. Managers are enabled independently, each with a choice of `all` (scan everything), `off`, or an explicit allowlist.
+
+### Why?
+
+You already have `brew outdated`, `npm outdated -g`, `uv tool list --outdated`. Running them by hand is friction nobody actually keeps up with. A session-start nag surfaces updates at a moment you're already at the keyboard and ready to decide — without turning into `topgrade` (which upgrades everything) or an auto-updater (which decides for you).
+
+## Install
+
+### oh-my-zsh
+
+```sh
+git clone https://github.com/madisonrickert/zsh-pkg-update-nag \
+  "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-pkg-update-nag"
+```
+
+Then add `zsh-pkg-update-nag` to your `plugins=(...)` array in `~/.zshrc`.
+
+### Standalone (any zsh)
+
+```sh
+git clone https://github.com/madisonrickert/zsh-pkg-update-nag ~/.zsh-pkg-update-nag
+echo 'source ~/.zsh-pkg-update-nag/zsh-pkg-update-nag.plugin.zsh' >> ~/.zshrc
+```
+
+Open a new terminal. On first run, the plugin writes a stampfile and exits silently — the first real check happens one interval later. Run `zsh-pkg-update-nag --now` to check immediately.
 
 ## Configuration
 
@@ -126,8 +130,13 @@ Nothing happens on shell start?
 
 ## Requirements
 
-- zsh 5.0 or newer.
-- Optional: `jq` (improves Homebrew version-delta display), `timeout`/`gtimeout` (wraps provider calls).
+- **zsh** 5.0 or newer.
+- **Optional:** `jq` (improves Homebrew version-delta display — without it, brew versions show as `?`), `timeout` / `gtimeout` (wraps provider calls with a 10s timeout). On macOS, `gtimeout` is part of `coreutils`: `brew install coreutils`.
+
+## Limitations / roadmap
+
+- **Bun and Deno globals aren't supported yet.** Both `bun outdated` and `deno outdated` currently only operate on project dependencies, not globally-installed tools. Will add once upstream supports global mode.
+- **No self-update.** To update the plugin itself, `git pull` inside its install directory.
 
 ## Contributing
 
@@ -138,7 +147,12 @@ brew install bats-core
 bats tests/
 ```
 
-Run `shellcheck` on the library files (note: most of the plugin is zsh-only, so some shellcheck warnings are expected and silenced via inline directives where appropriate).
+The codebase is zsh-specific (not bash-portable). A few conventions worth knowing before submitting a PR:
+
+- Every function begins with `emulate -L zsh` + `setopt local_options` so user shell options can't alter behavior.
+- Commands are invoked array-style (`local cmd=(brew upgrade "$pkg"); "${cmd[@]}"`) — never `eval` on user-or-network-derived strings.
+- Internal symbols are prefixed `_zpun_`; public env vars are `ZSH_PKG_UPDATE_NAG_*`.
+- `shellcheck` output is noisy for zsh syntax (`${(f)…}`, `$+functions[…]`, etc.); `zsh -n` is the authoritative parse check.
 
 ## License
 
