@@ -30,23 +30,69 @@ You already have `brew outdated`, `npm outdated -g`, `uv tool list --outdated`. 
 
 ## Install
 
+Pick whichever matches your setup. Each path is ~30 seconds.
+
 ### oh-my-zsh
+
+**1.** Clone into the custom-plugins directory:
 
 ```sh
 git clone https://github.com/madisonrickert/zsh-pkg-update-nag \
   "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-pkg-update-nag"
 ```
 
-Then add `zsh-pkg-update-nag` to your `plugins=(...)` array in `~/.zshrc`.
+**2.** Add `zsh-pkg-update-nag` to the `plugins=(...)` array in your `~/.zshrc` — typically near the top, alongside `git`, `brew`, etc.:
 
-### Standalone (any zsh)
+```zsh
+plugins=(
+  git
+  # ...your existing plugins...
+  zsh-pkg-update-nag
+)
+```
+
+**3.** Reload: `exec zsh` (or open a new terminal).
+
+### zinit
+
+```zsh
+# in ~/.zshrc
+zinit light madisonrickert/zsh-pkg-update-nag
+```
+
+### antidote
+
+```sh
+# in ~/.zsh_plugins.txt
+madisonrickert/zsh-pkg-update-nag
+```
+
+### Standalone (plain zsh, no framework)
 
 ```sh
 git clone https://github.com/madisonrickert/zsh-pkg-update-nag ~/.zsh-pkg-update-nag
+
+# Append the source line — run this once
 echo 'source ~/.zsh-pkg-update-nag/zsh-pkg-update-nag.plugin.zsh' >> ~/.zshrc
+
+exec zsh
 ```
 
-Open a new terminal. On first run, the plugin writes a stampfile and exits silently — the first real check happens one interval later. Run `zsh-pkg-update-nag --now` to check immediately.
+### Verify it worked
+
+On first install, open a fresh terminal. You should see a one-time initialization message:
+
+```
+zsh-pkg-update-nag: initialized, first check in 4h (run `zsh-pkg-update-nag --now` to check immediately)
+```
+
+Then confirm detected managers and config:
+
+```sh
+zsh-pkg-update-nag --check-env
+```
+
+By design, the first real check is deferred one interval so installs don't pay a network cost on the first shell. To see the prompt immediately — even with nothing outdated — run `zsh-pkg-update-nag --now`.
 
 ## Configuration
 
