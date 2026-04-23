@@ -1,0 +1,230 @@
+# Terminal UI: color-aware printers, summary formatter, and tiered prompt loop.
+
+# Human-friendly labels for each supported manager.
+typeset -gA _ZPUN_MANAGER_LABELS=(
+  brew "Homebrew"
+  npm  "npm (global)"
+  uv   "uv tools"
+  gem  "RubyGems"
+)
+
+_zpun_ui_color_enabled() {
+  emulate -L zsh
+  setopt local_options
+
+  [[ -z ${NO_COLOR-} ]] || return 1
+  [[ -t 1 ]] || return 1
+  [[ $TERM != dumb ]] || return 1
+  return 0
+}
+
+# _zpun_ui_say <style> <text…> — print with optional zsh prompt-escape styling.
+# Styles: header, dim, pkg, cur, arrow, new, ok, err, prompt.
+_zpun_ui_say() {
+  emulate -L zsh
+  setopt local_options
+
+  local style=$1; shift
+  local text=$*
+
+  if ! _zpun_ui_color_enabled; then
+    print -r -- "$text"
+    return
+  fi
+
+  local open close='%f%b'
+  case $style in
+    header) open='%B%F{cyan}' ;;
+    dim)    open='%F{244}' ;;
+    pkg)    open='%F{default}' ;;
+    cur)    open='%F{yellow}' ;;
+    arrow)  open='%F{244}' ;;
+    new)    open='%F{green}' ;;
+    ok)     open='%F{green}' ;;
+    err)    open='%B%F{red}' ;;
+    prompt) open='%F{cyan}' ;;
+    *)      open='' ; close='' ;;
+  esac
+
+  print -P -r -- "${open}${text}${close}"
+}
+
+_zpun_ui_info()  { _zpun_ui_say dim "$*" ; }
+_zpun_ui_ok()    { _zpun_ui_say ok  "$*" ; }
+_zpun_ui_error() { _zpun_ui_say err "$*" >&2 ; }
+
+# _zpun_ui_render_summary <lines…> — print the grouped tier-1 summary.
+# Each input line is manager\tname\tcurrent\tlatest.
+_zpun_ui_render_summary() {
+  emulate -L zsh
+  setopt local_options
+
+  local -a lines
+  lines=( "$@" )
+
+  # Compute max name width for per-manager column alignment.
+  local max_name=0
+  local line name
+  for line in "${lines[@]}"; do
+    name=${${(s:	:)line}[2]}
+    (( ${#name} > max_name )) && max_name=${#name}
+  done
+  (( max_name = max_name < 8 ? 8 : max_name ))
+
+  _zpun_ui_say header "▲ ${#lines} update$( (( ${#lines} == 1 )) || print s ) available"
+  print
+
+  local manager prev_manager=""
+  local pkg cur lat label pad spaces
+  for line in "${lines[@]}"; do
+    manager=${${(s:	:)line}[1]}
+    pkg=${${(s:	:)line}[2]}
+    cur=${${(s:	:)line}[3]}
+    lat=${${(s:	:)line}[4]}
+
+    if [[ $manager != $prev_manager ]]; then
+      label=${_ZPUN_MANAGER_LABELS[$manager]:-$manager}
+      _zpun_ui_say header "  $label"
+      prev_manager=$manager
+    fi
+
+    pad=$(( max_name - ${#pkg} ))
+    (( pad < 0 )) && pad=0
+    spaces=${(l:$pad:: :)}
+    if _zpun_ui_color_enabled; then
+      print -P -r -- "    %F{default}${pkg}%f${spaces}  %F{yellow}${cur}%f %F{244}→%f %F{green}${lat}%f"
+    else
+      print -r -- "    ${pkg}${spaces}  ${cur} → ${lat}"
+    fi
+  done
+  print
+}
+
+# _zpun_ui_read_choice <prompt> <valid_chars> <default_char>
+# Displays the prompt on stderr so callers can safely $(...)-capture stdout.
+# Emits exactly one character (the chosen key, lowercased) on stdout.
+_zpun_ui_read_choice() {
+  emulate -L zsh
+  setopt local_options
+
+  local prompt=$1 valid=$2 default=$3
+  local key
+
+  if _zpun_ui_color_enabled; then
+    print -nP -r -- "  %F{cyan}${prompt}%f " >&2
+  else
+    print -n -r -- "  ${prompt} " >&2
+  fi
+
+  # read -k 1 reads a single keypress; -u 0 forces stdin (important for subshells).
+  if ! read -k 1 -u 0 key; then
+    print >&2
+    print -r -- "$default"
+    return
+  fi
+  print >&2
+
+  if [[ -z $key || $key == $'\n' || $key == $'\r' ]]; then
+    key=$default
+  fi
+
+  key=${key:l}
+  if [[ $valid != *$key* ]]; then
+    key=$default
+  fi
+  print -r -- "$key"
+}
+
+# _zpun_ui_prompt_and_upgrade <lines…> — tier-1 prompt, then run upgrades.
+_zpun_ui_prompt_and_upgrade() {
+  emulate -L zsh
+  setopt local_options
+
+  local -a lines
+  lines=( "$@" )
+
+  _zpun_ui_render_summary "${lines[@]}"
+
+  local choice=$(_zpun_ui_read_choice "Update all? [Y/n/s] ›" "yns" "y")
+
+  case $choice in
+    y) _zpun_ui_upgrade_all "${lines[@]}" ;;
+    n) _zpun_ui_info "Skipped. Next check in ${zsh_pkg_update_nag_interval_hours}h." ;;
+    s) _zpun_ui_upgrade_individually "${lines[@]}" ;;
+  esac
+}
+
+_zpun_ui_upgrade_all() {
+  emulate -L zsh
+  setopt local_options
+
+  local line manager pkg
+  for line in "$@"; do
+    manager=${${(s:	:)line}[1]}
+    pkg=${${(s:	:)line}[2]}
+    _zpun_run_upgrade "$manager" "$pkg" || _zpun_ui_error "  upgrade failed for ${manager} ${pkg}"
+  done
+  _zpun_ui_ok "Done."
+}
+
+_zpun_ui_upgrade_individually() {
+  emulate -L zsh
+  setopt local_options
+
+  local line manager pkg cur lat choice
+  for line in "$@"; do
+    manager=${${(s:	:)line}[1]}
+    pkg=${${(s:	:)line}[2]}
+    cur=${${(s:	:)line}[3]}
+    lat=${${(s:	:)line}[4]}
+
+    choice=$(_zpun_ui_read_choice "update ${manager} ${pkg} ${cur} → ${lat}? [Y/n]" "yn" "y")
+    if [[ $choice == y ]]; then
+      _zpun_run_upgrade "$manager" "$pkg" || _zpun_ui_error "  upgrade failed for ${manager} ${pkg}"
+    fi
+  done
+  _zpun_ui_ok "Done."
+}
+
+# _zpun_ui_print_env — diagnostic output for the --check-env subcommand.
+_zpun_ui_print_env() {
+  emulate -L zsh
+  setopt local_options
+
+  local stamp=$(_zpun_rate_limit_stamp_path)
+  local stamp_status="absent (will init on next shell)"
+  if [[ -e $stamp ]]; then
+    local mtime=$(_zpun_mtime "$stamp")
+    local now=$(date +%s)
+    local age_min=$(( (now - mtime) / 60 ))
+    local interval_min=$(( zsh_pkg_update_nag_interval_hours * 60 ))
+    local remaining=$(( interval_min - age_min ))
+    (( remaining < 0 )) && remaining=0
+    stamp_status="last check ${age_min}m ago; next check in ${remaining}m"
+  fi
+
+  print -r -- "zsh-pkg-update-nag"
+  print -r -- "  version:       $(_zpun_version 2>/dev/null || print 0.1.0)"
+  print -r -- "  plugin dir:    $_ZPUN_DIR"
+  print -r -- "  state dir:     $(_zpun_state_dir)"
+  print -r -- "  interval:      ${zsh_pkg_update_nag_interval_hours}h"
+  print -r -- "  stamp:         $stamp_status"
+  print -r -- "  managers:"
+  local m mode allow available
+  for m in brew npm uv gem; do
+    mode="off"
+    if _zpun_manager_enabled "$m"; then
+      allow=$(_zpun_manager_allowlist "$m" | tr '\n' ' ')
+      if [[ -z ${allow// } ]]; then
+        mode="all"
+      else
+        mode="allowlist: $allow"
+      fi
+    fi
+    available="missing"
+    (( $+commands[$m] )) && available="available"
+    print -r -- "    $m: $mode ($available)"
+  done
+}
+
+_zpun_version() { print -r -- "0.1.0" }

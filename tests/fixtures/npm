@@ -1,0 +1,36 @@
+#!/bin/sh
+# Fixture: pretends to be `npm`.
+case "$1 $2" in
+  "config get")
+    echo "/tmp/npm-prefix"
+    exit 0
+    ;;
+esac
+case "$1" in
+  outdated)
+    case "${ZPUN_FIXTURE_NPM:-default}" in
+      empty)
+        exit 0
+        ;;
+      fail)
+        echo "npm fixture: simulated failure" >&2
+        exit 2
+        ;;
+      *)
+        # npm outdated exits 1 when anything is outdated — that's real behavior.
+        cat <<'OUT'
+/tmp/npm-prefix/lib/node_modules/pnpm:pnpm@9.5.1:pnpm@9.0.0:pnpm@9.5.1:pnpm
+/tmp/npm-prefix/lib/node_modules/claude-code:claude-code@1.5.0:claude-code@1.4.2:claude-code@1.5.0:claude-code
+OUT
+        exit 1
+        ;;
+    esac
+    ;;
+  install)
+    echo "npm fixture installed: $*"
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac

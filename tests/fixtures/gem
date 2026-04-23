@@ -1,0 +1,19 @@
+#!/bin/sh
+case "$1" in
+  outdated)
+    case "${ZPUN_FIXTURE_GEM:-default}" in
+      empty) exit 0 ;;
+      fail) exit 1 ;;
+      *)
+        echo "rails (7.1.0 < 7.2.0)"
+        echo "rspec (3.12.0 < 3.13.0)"
+        exit 0
+        ;;
+    esac
+    ;;
+  update)
+    echo "gem fixture updated: $2"
+    exit 0
+    ;;
+esac
+exit 0

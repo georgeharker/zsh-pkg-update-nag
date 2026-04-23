@@ -1,0 +1,48 @@
+#!/bin/sh
+# Fixture: pretends to be `brew`, answering `brew outdated` with canned JSON.
+# Respects ZPUN_FIXTURE_BREW env var for alternate scenarios.
+case "$1" in
+  outdated)
+    case "${ZPUN_FIXTURE_BREW:-default}" in
+      empty)
+        # Nothing outdated.
+        if [ "$2" = "--json=v2" ] || [ "$2" = "--quiet" ]; then
+          echo '{"formulae":[],"casks":[]}'
+          exit 0
+        fi
+        exit 0
+        ;;
+      fail)
+        echo "brew fixture: simulated failure" >&2
+        exit 1
+        ;;
+      slow)
+        sleep 30
+        exit 0
+        ;;
+      *)
+        # Two outdated formulae.
+        for arg in "$@"; do
+          if [ "$arg" = "--json=v2" ]; then
+            cat <<'JSON'
+{"formulae":[
+  {"name":"gh","installed_versions":["2.60.0"],"current_version":"2.62.0"},
+  {"name":"fd","installed_versions":["10.1.0"],"current_version":"10.2.0"}
+],"casks":[]}
+JSON
+            exit 0
+          fi
+        done
+        printf 'gh\nfd\n'
+        exit 0
+        ;;
+    esac
+    ;;
+  upgrade)
+    echo "brew fixture upgraded: $2"
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac

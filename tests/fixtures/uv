@@ -1,0 +1,29 @@
+#!/bin/sh
+# Fixture: pretends to be `uv`.
+case "$1 $2" in
+  "tool list")
+    if [ "$3" = "--help" ]; then
+      echo "Usage: uv tool list [OPTIONS]"
+      echo "  --outdated  List outdated tools"
+      exit 0
+    fi
+    case "${ZPUN_FIXTURE_UV:-default}" in
+      empty) exit 0 ;;
+      fail) exit 2 ;;
+      *)
+        # --outdated form
+        echo "ruff v0.6.0 (latest: v0.6.4)"
+        exit 0
+        ;;
+    esac
+    ;;
+esac
+case "$1" in
+  tool)
+    if [ "$2" = "upgrade" ]; then
+      echo "uv fixture upgraded: $3"
+      exit 0
+    fi
+    ;;
+esac
+exit 0
