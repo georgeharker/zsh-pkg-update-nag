@@ -12,28 +12,8 @@ _zpun_rate_limit_lock_path() {
   print -r -- "$(_zpun_state_dir)/lock.d"
 }
 
-# Return 0 if there was no existing stampfile (and we just created one in
-# "initialized, wait one interval" mode). Return 1 if a stampfile already exists,
-# or if FORCE is set (in which case the caller is expected to run the check now).
-_zpun_rate_limit_init_if_missing() {
-  emulate -L zsh
-  setopt local_options
-
-  [[ ${ZSH_PKG_UPDATE_NAG_FORCE:-0} == 1 ]] && return 1
-
-  local stamp=$(_zpun_rate_limit_stamp_path)
-  if [[ -e $stamp ]]; then
-    return 1
-  fi
-
-  local dir=$(_zpun_state_dir)
-  mkdir -p "$dir" 2>/dev/null || return 1
-  : > "$stamp"
-  print -u2 -r -- "zsh-pkg-update-nag: initialized, first check in ${zsh_pkg_update_nag_interval_hours}h (run \`zsh-pkg-update-nag --now\` to check immediately)"
-  return 0
-}
-
-# Returns 0 if enough time has passed since the last check OR force is set.
+# Returns 0 if enough time has passed since the last check OR force is set OR
+# there's no stampfile yet (fresh install — check immediately, don't defer).
 _zpun_rate_limit_is_due() {
   emulate -L zsh
   setopt local_options

@@ -80,19 +80,15 @@ exec zsh
 
 ### Verify it worked
 
-On first install, open a fresh terminal. You should see a one-time initialization message:
+Open a fresh terminal. The first check runs immediately — if anything on your allowlist (or across all managers, on the default config) is outdated, you'll see the update prompt. If nothing's outdated, the shell is silent by design.
 
-```
-zsh-pkg-update-nag: initialized, first check in 4h (run `zsh-pkg-update-nag --now` to check immediately)
-```
-
-Then confirm detected managers and config:
+Confirm detected managers and the computed config any time with:
 
 ```sh
 zsh-pkg-update-nag --check-env
 ```
 
-By design, the first real check is deferred one interval so installs don't pay a network cost on the first shell. To see the prompt immediately — even with nothing outdated — run `zsh-pkg-update-nag --now`.
+Subsequent shells within the 4-hour rate-limit window stay silent. Run `zsh-pkg-update-nag --now` to force a check on demand.
 
 ## Configuration
 

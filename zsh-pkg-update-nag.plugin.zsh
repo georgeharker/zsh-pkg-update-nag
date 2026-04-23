@@ -107,7 +107,6 @@ _zpun_main() {
   _zpun_should_run || return 0
   _zpun_config_load
 
-  _zpun_rate_limit_init_if_missing && return 0
   _zpun_rate_limit_is_due || return 0
 
   _zpun_rate_limit_acquire_lock || return 0
