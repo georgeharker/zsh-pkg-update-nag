@@ -61,9 +61,9 @@ teardown() { teardown_env ; }
 }
 
 @test "_zpun_run_upgrade builds correct command per manager" {
-  run run_plugin_zsh "_zpun_run_upgrade brew pnpm; _zpun_run_upgrade npm claude-code; _zpun_run_upgrade gem rails"
+  run run_plugin_zsh "_zpun_run_upgrade brew pnpm; _zpun_run_upgrade npm typescript; _zpun_run_upgrade gem rails"
   [ "$status" -eq 0 ]
   [[ "$output" == *"brew upgrade pnpm"* ]]
-  [[ "$output" == *"npm install -g claude-code@latest"* ]]
+  [[ "$output" == *"npm install -g typescript@latest"* ]]
   [[ "$output" == *"gem update rails"* ]]
 }

@@ -10,7 +10,7 @@ teardown() { teardown_env ; }
   [ "$status" -eq 0 ]
   [[ "$output" == *"gh	2.60.0	2.62.0"* ]]
   [[ "$output" == *"fd	10.1.0	10.2.0"* ]]
-  [[ "$output" == *"claude-code@latest	0.9.0	0.9.1"* ]]
+  [[ "$output" == *"example-app@latest	0.9.0	0.9.1"* ]]
 }
 
 @test "brew provider is silent when nothing is outdated" {
@@ -23,7 +23,7 @@ teardown() { teardown_env ; }
   run run_plugin_zsh "_zpun_provider_npm"
   [ "$status" -eq 0 ]
   [[ "$output" == *"pnpm	9.0.0	9.5.1"* ]]
-  [[ "$output" == *"claude-code	1.4.2	1.5.0"* ]]
+  [[ "$output" == *"typescript	5.4.0	5.5.0"* ]]
 }
 
 @test "uv provider parses 'latest: vX' lines" {

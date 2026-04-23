@@ -64,7 +64,7 @@ zsh_pkg_update_nag_uv=all
 zsh_pkg_update_nag_gem=off
 
 # Example: watch only two npm globals.
-# zsh_pkg_update_nag_npm=(claude-code pnpm)
+# zsh_pkg_update_nag_npm=(typescript prettier)
 ```
 
 ### Environment variables
@@ -86,6 +86,8 @@ zsh-pkg-update-nag --now         # run the check immediately
 zsh-pkg-update-nag --check-env   # show detected managers, config, and next-check time
 zsh-pkg-update-nag --help
 ```
+
+Tab-completion for these flags is shipped as `_zsh-pkg-update-nag`. oh-my-zsh picks it up automatically; standalone users may need to run `compinit` (or open a fresh shell) once after installing.
 
 ## When the plugin does nothing
 

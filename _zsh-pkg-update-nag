@@ -1,0 +1,15 @@
+#compdef zsh-pkg-update-nag
+# Completion for the zsh-pkg-update-nag command.
+
+_zsh_pkg_update_nag() {
+  local -a subcommands
+  subcommands=(
+    '--now:Run the update check immediately, ignoring the rate-limit'
+    '--check-env:Print detected managers, config paths, and next-check time'
+    '--help:Show help'
+    '-h:Show help'
+  )
+  _describe -t commands 'zsh-pkg-update-nag subcommand' subcommands
+}
+
+_zsh_pkg_update_nag "$@"

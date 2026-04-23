@@ -23,7 +23,7 @@ teardown() { teardown_env ; }
   # Only brew/gh should pass the allowlist; fd and the cask are filtered out.
   [[ "$output" == *$'brew\tgh\t2.60.0\t2.62.0'* ]]
   [[ "$output" != *"fd"* ]]
-  [[ "$output" != *"claude-code@latest"* ]]
+  [[ "$output" != *"example-app@latest"* ]]
   [[ "$output" != *"pnpm"* ]]
   [[ "$output" != *"ruff"* ]]
 }

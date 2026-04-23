@@ -3,6 +3,11 @@
 # Resolve this file's directory whether we were sourced directly or through OMZ.
 typeset -g _ZPUN_DIR="${${(%):-%x}:A:h}"
 
+# Expose the shipped completion (_zsh-pkg-update-nag) to the completion system.
+# oh-my-zsh usually does this automatically for its plugins, but adding it
+# explicitly makes standalone `source`-based installs work too.
+fpath=("$_ZPUN_DIR" $fpath)
+
 source "$_ZPUN_DIR/lib/config.zsh"
 source "$_ZPUN_DIR/lib/rate_limit.zsh"
 source "$_ZPUN_DIR/lib/ui.zsh"

@@ -20,7 +20,7 @@ case "$1" in
         # npm outdated exits 1 when anything is outdated — that's real behavior.
         cat <<'OUT'
 /tmp/npm-prefix/lib/node_modules/pnpm:pnpm@9.5.1:pnpm@9.0.0:pnpm@9.5.1:pnpm
-/tmp/npm-prefix/lib/node_modules/claude-code:claude-code@1.5.0:claude-code@1.4.2:claude-code@1.5.0:claude-code
+/tmp/npm-prefix/lib/node_modules/typescript:typescript@5.5.0:typescript@5.4.0:typescript@5.5.0:typescript
 OUT
         exit 1
         ;;
