@@ -443,83 +443,46 @@ _WAIT_STAMP='
 }
 
 # ---------------------------------------------------------------------------
-# Typed-input guard: defer the y/n/s prompt when the user is mid-typing.
+# Typed-input guard: render summary, render the prompt line as auto-skipped
+# with an 'n' result rather than reading a possibly-pre-typed character.
 # ---------------------------------------------------------------------------
-
-@test "_zpun_precmd_nag defers TSV pending when user has typed input" {
-  run run_plugin_zsh "
-    NO_COLOR=1
-    _zpun_has_typed_input() { return 0 }   # mock: user is typing
-    local pending=\$(_zpun_pending_path)
-    mkdir -p \${pending:h}
-    print -r -- \$'brew\tgh\t2.60.0\t2.62.0' > \$pending
-    precmd_functions+=(_zpun_precmd_nag)
-    _zpun_precmd_nag
-    [[ -e \$pending ]] && echo PENDING_KEPT || echo PENDING_GONE
-    (( \${precmd_functions[(I)_zpun_precmd_nag]} )) && echo HOOK_KEPT || echo HOOK_DROPPED
-    [[ \"\$output\" == *Update* ]] && echo PROMPT_SHOWN || echo PROMPT_SUPPRESSED
-  "
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"PENDING_KEPT"* ]]
-  [[ "$output" == *"HOOK_KEPT"* ]]
-  [[ "$output" != *"updates available"* ]]
-  [[ "$output" != *"Update all?"* ]]
-}
-
-@test "_zpun_precmd_nag does not defer ok sentinel even when user has typed input" {
-  run run_plugin_zsh "
-    NO_COLOR=1
-    _zpun_has_typed_input() { return 0 }
-    local pending=\$(_zpun_pending_path)
-    mkdir -p \${pending:h}
-    print -r -- 'ok' > \$pending
-    precmd_functions+=(_zpun_precmd_nag)
-    _zpun_precmd_nag
-    [[ -e \$pending ]] && echo PENDING_KEPT || echo PENDING_GONE
-    (( \${precmd_functions[(I)_zpun_precmd_nag]} )) && echo HOOK_KEPT || echo HOOK_DROPPED
-  "
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"PENDING_GONE"* ]]
-  [[ "$output" == *"HOOK_DROPPED"* ]]
-  [[ "$output" == *"All packages up to date"* ]]
-}
-
-@test "_zpun_precmd_nag does not defer err sentinel even when user has typed input" {
-  run run_plugin_zsh "
-    NO_COLOR=1
-    _zpun_has_typed_input() { return 0 }
-    local pending=\$(_zpun_pending_path)
-    mkdir -p \${pending:h}
-    print -r -- 'err' > \$pending
-    precmd_functions+=(_zpun_precmd_nag)
-    _zpun_precmd_nag
-    [[ -e \$pending ]] && echo PENDING_KEPT || echo PENDING_GONE
-    (( \${precmd_functions[(I)_zpun_precmd_nag]} )) && echo HOOK_KEPT || echo HOOK_DROPPED
-  "
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"PENDING_GONE"* ]]
-  [[ "$output" == *"HOOK_DROPPED"* ]]
-}
-
-@test "_zpun_precmd_nag processes TSV pending when no typed input" {
-  # _zpun_has_typed_input returns 1 when stdin isn't a TTY (bats heredoc),
-  # so this exercises the not-typing path without a mock.
-  run run_plugin_zsh "
-    NO_COLOR=1
-    local pending=\$(_zpun_pending_path)
-    mkdir -p \${pending:h}
-    print -r -- \$'brew\tgh\t2.60.0\t2.62.0' > \$pending
-    precmd_functions+=(_zpun_precmd_nag)
-    _zpun_precmd_nag <<< 'n'
-    [[ -e \$pending ]] && echo PENDING_KEPT || echo PENDING_GONE
-  "
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"PENDING_GONE"* ]]
-  [[ "$output" == *"1 update available"* ]]
-}
 
 @test "_zpun_has_typed_input returns 1 when stdin isn't a TTY" {
   run run_plugin_zsh "_zpun_has_typed_input && echo HAS || echo CLEAR"
   [ "$status" -eq 0 ]
   [[ "$output" == *"CLEAR"* ]]
+}
+
+@test "prompt_and_upgrade auto-skips with 'n' when user has typed input" {
+  run run_plugin_zsh "
+    NO_COLOR=1
+    _zpun_has_typed_input() { return 0 }   # mock: user is typing
+    lines=( \$'brew\tgh\t2.60.0\t2.62.0' \$'npm\tpnpm\t9.0.0\t9.5.1' )
+    _zpun_ui_prompt_and_upgrade \"\${lines[@]}\"
+  "
+  [ "$status" -eq 0 ]
+  # Summary still rendered so the user sees what was found.
+  [[ "$output" == *"2 updates available"* ]]
+  [[ "$output" == *"gh"* ]]
+  # Prompt line shown as auto-dismissed.
+  [[ "$output" == *"Update all? [Y/n/s]"* ]]
+  [[ "$output" == *"typed input detected"* ]]
+  # 'n' branch reached: skip notice, no upgrades.
+  [[ "$output" == *"Skipped."* ]]
+  [[ "$output" != *"fixture upgraded"* ]]
+  [[ "$output" != *"fixture installed"* ]]
+}
+
+@test "prompt_and_upgrade reads normally when stdin has no typed input" {
+  # _zpun_has_typed_input returns 1 (no TTY in bats), so the auto-skip
+  # branch isn't taken — we fall through to the standard read.
+  run run_plugin_zsh "
+    NO_COLOR=1
+    lines=( \$'brew\tgh\t2.60.0\t2.62.0' )
+    _zpun_ui_prompt_and_upgrade \"\${lines[@]}\" <<< 'n'
+  "
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"1 update available"* ]]
+  [[ "$output" != *"typed input detected"* ]]
+  [[ "$output" == *"Skipped."* ]]
 }

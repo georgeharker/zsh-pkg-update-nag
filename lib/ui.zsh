@@ -321,7 +321,22 @@ _zpun_ui_prompt_and_upgrade() {
 
   _zpun_ui_render_summary "${lines[@]}"
 
-  local choice=$(_zpun_ui_read_choice "Update all? [Y/n/s] ›" "yns" "y")
+  local choice
+  if _zpun_has_typed_input; then
+    # User is mid-typing the next command — don't pop a blocking prompt
+    # at them and risk consuming a pre-typed key as the answer. Render
+    # the prompt line as auto-dismissed so they see what happened, then
+    # treat as 'n': skip everything and rely on the rate-limit interval
+    # before we nag again.
+    if _zpun_ui_color_enabled; then
+      print -P -r -- "  %F{cyan}Update all? [Y/n/s] ›%f n  %F{244}(skipped — typed input detected)%f"
+    else
+      print -r -- "  Update all? [Y/n/s] › n  (skipped — typed input detected)"
+    fi
+    choice=n
+  else
+    choice=$(_zpun_ui_read_choice "Update all? [Y/n/s] ›" "yns" "y")
+  fi
 
   # End any active capture session before running upgrades: restore the tty
   # to a normal cooked+echo state for `brew upgrade`, `npm install -g`, etc.
