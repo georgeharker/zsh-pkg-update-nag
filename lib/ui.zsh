@@ -87,6 +87,34 @@ _zpun_ui_status_clear() {
   return 0
 }
 
+# _zpun_has_typed_input — returns 0 if stdin currently has unread bytes the
+# user typed, 1 otherwise (or if the helper modules aren't available).
+#
+# Used by the deferred-mode precmd hook to defer the y/n/s prompt when the
+# user is mid-typing the next command — popping a prompt at them in that
+# moment is intrusive and risks consuming a pre-typed character as the
+# answer. zsh/zselect polls fd 0 with no wait, but the descriptor only
+# delivers bytes outside of canonical-mode line buffering, so we briefly
+# switch to -icanon, poll, and restore the original tty in `always`.
+#
+# Pattern lifted from dotfiler's _update_core_has_typed_input (which credits
+# Philippe Troin: https://zsh.org/mla/users/2022/msg00062.html).
+_zpun_has_typed_input() {
+  emulate -L zsh
+  setopt local_options
+  [[ -t 0 ]] || return 1
+  zmodload zsh/zselect 2>/dev/null || return 1
+  local saved
+  saved=$(stty -g 2>/dev/null) || return 1
+  {
+    stty -icanon
+    zselect -t 0 -r 0
+    return $?
+  } always {
+    stty "$saved"
+  }
+}
+
 # _zpun_input_capture_begin — silently absorb keystrokes during the foreground
 # scan so they don't echo over the spinner. Switches the terminal to
 # -echo -icanon and stays that way through the y/n/s prompt; the prompt's

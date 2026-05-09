@@ -284,13 +284,26 @@ _zpun_precmd_nag() {
     return 0
   fi
 
-  precmd_functions=( ${precmd_functions:#_zpun_precmd_nag} )
-
   local content
   content=$(<"$pending")
+  local first_line=${content%%$'\n'*}
+
+  # If we'd render the y/n/s prompt and the user is mid-typing the next
+  # command, defer to the next precmd: leave the pending file in place,
+  # leave the hook registered, and bail out. Without this gate, the read
+  # at the prompt would consume a pre-typed character as the answer.
+  # Only the TSV branch is gated — the cosmetic ok/err sentinels don't
+  # interrupt typing meaningfully.
+  if [[ $first_line != ok && $first_line != err ]]; then
+    if _zpun_has_typed_input; then
+      return 0
+    fi
+  fi
+
+  precmd_functions=( ${precmd_functions:#_zpun_precmd_nag} )
   rm -f "$pending"
 
-  case ${content%%$'\n'*} in
+  case $first_line in
     ok)
       _zpun_ui_info "All packages up to date."
       ;;
