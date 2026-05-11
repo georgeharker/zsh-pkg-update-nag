@@ -306,7 +306,11 @@ _zpun_ui_read_choice() {
 
   key=${key:l}
   if [[ $valid != *$key* ]]; then
-    key=$default
+    # Unrecognised key: treat as decline if 'n' is valid, otherwise fall
+    # back to the caller's default. Only Enter (handled above) and an
+    # explicit valid key should accept a [Y/n…] prompt — a stray 'w' or
+    # 'q' must not silently confirm.
+    [[ $valid == *n* ]] && key=n || key=$default
   fi
   print -r -- "$key"
 }

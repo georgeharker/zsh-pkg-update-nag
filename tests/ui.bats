@@ -112,6 +112,24 @@ teardown() { teardown_env ; }
   [[ "$output" == *"[y]"* ]]
 }
 
+@test "read_choice: unrecognised key declines when n is in the valid set" {
+  run run_plugin_zsh '
+    choice=$(printf "w" | _zpun_ui_read_choice "p" "yns" "y")
+    print -r -- "[$choice]"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[n]"* ]]
+}
+
+@test "read_choice: unrecognised key falls back to default when n is not valid" {
+  run run_plugin_zsh '
+    choice=$(printf "w" | _zpun_ui_read_choice "p" "ya" "y")
+    print -r -- "[$choice]"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[y]"* ]]
+}
+
 @test "input_capture is a no-op when stdin isn't a TTY" {
   run run_plugin_zsh '
     _zpun_input_capture_begin
