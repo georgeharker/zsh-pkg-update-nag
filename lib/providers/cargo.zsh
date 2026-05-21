@@ -23,6 +23,22 @@ _zpun_provider_cargo() {
     return 0
   fi
 
+  # cargo takes an exclusive flock on $CARGO_HOME/.package-cache for any
+  # operation that touches the registry index — and `install-update --list`
+  # is such an operation, because it refreshes the index to compute "latest".
+  # cargo blocks indefinitely on that lock (it prints "Blocking waiting for
+  # file lock on package cache" to stderr), so a concurrent `cargo install`
+  # or `cargo install-update -a` in another shell would freeze our scan
+  # until it finishes. Probe the lock non-blockingly via zsh/system's flock;
+  # if it's held, skip the provider this run.
+  local lock_file="${CARGO_HOME:-$HOME/.cargo}/.package-cache"
+  if [[ -f $lock_file ]] && zmodload zsh/system 2>/dev/null; then
+    if ! ( zsystem flock -t 0 "$lock_file" ) 2>/dev/null; then
+      _zpun_debug_log "cargo: package-cache lock held by another process, skipping"
+      return 0
+    fi
+  fi
+
   local raw
   raw=$(cargo install-update --list 2>/dev/null) || return 0
   [[ -n $raw ]] || return 0
