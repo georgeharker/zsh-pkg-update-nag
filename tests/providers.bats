@@ -52,6 +52,27 @@ teardown() { teardown_env ; }
   [[ "$output" == *"rspec	3.12.0	3.13.0"* ]]
 }
 
+@test "cargo provider emits tsv for rows tagged 'Yes'" {
+  run run_plugin_zsh "_zpun_provider_cargo"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ripgrep	13.0.0	14.1.0"* ]]
+  [[ "$output" == *"cargo-edit	0.12.0	0.13.0"* ]]
+  # Up-to-date rows ("No") must be filtered out.
+  [[ "$output" != *"cargo-update	"* ]]
+}
+
+@test "cargo provider is silent when every row is 'No'" {
+  ZPUN_FIXTURE_CARGO=empty run run_plugin_zsh "_zpun_provider_cargo"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "cargo provider skips silently when cargo-install-update is missing" {
+  ZPUN_FIXTURE_CARGO=missing run run_plugin_zsh "_zpun_provider_cargo"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
 @test "allowlist filters brew results" {
   run run_plugin_zsh "zsh_pkg_update_nag_brew=(gh); _zpun_config_load; _zpun_provider_brew"
   [ "$status" -eq 0 ]
