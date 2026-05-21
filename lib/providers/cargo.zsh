@@ -6,8 +6,14 @@
 # --list`, which prints a table of the binaries installed via `cargo install`
 # and which ones have newer versions on crates.io.
 #
-# Without cargo-update installed we log and skip — the upstream surface for
-# outdated globals isn't there to parse.
+# Min-age is handled natively by cargo-update via `--cooldown <duration>`
+# (cargo-update ≥ 15) — we forward our configured threshold to that flag and
+# let the upstream tool do the filtering. No per-package crates.io call from
+# us. When cargo-update is too old to know `--cooldown`, we log and proceed
+# without filtering so the rest of the scan still surfaces updates.
+#
+# Without cargo-update installed at all, we log and skip — the upstream
+# surface for outdated globals isn't there to parse.
 
 _zpun_provider_cargo() {
   emulate -L zsh
@@ -15,13 +21,23 @@ _zpun_provider_cargo() {
 
   (( $+commands[cargo] )) || return 0
 
-  # `cargo install-update` is a separate cargo subcommand. cargo dispatches
-  # `cargo install-update …` to a `cargo-install-update` binary on PATH; if
-  # it isn't installed, the command exits non-zero with "no such subcommand".
-  if ! cargo install-update --version >/dev/null 2>&1; then
+  # `cargo install-update` is a separate cargo subcommand (cargo dispatches
+  # `cargo install-update …` to a `cargo-install-update` binary on PATH). A
+  # single `--version` call doubles as both an existence check and the
+  # source-of-truth for feature detection — `--cooldown` was added in
+  # cargo-install-update v20.0.0 (2026-04-06 release), so we just compare
+  # the major rather than spawning a second `--help | grep`.
+  #
+  # Output shape: "cargo-install-update X.Y.Z" → take the trailing word,
+  # drop everything from the first dot, and treat anything that isn't a
+  # plain integer as "legacy" (major 0).
+  local version_line major
+  version_line=$(cargo install-update --version 2>/dev/null) || {
     _zpun_debug_log "cargo: cargo-install-update unavailable, skipping"
     return 0
-  fi
+  }
+  major=${${version_line##* }%%.*}
+  [[ $major == <-> ]] || major=0
 
   # cargo takes an exclusive flock on $CARGO_HOME/.package-cache for any
   # operation that touches the registry index — and `install-update --list`
@@ -39,8 +55,30 @@ _zpun_provider_cargo() {
     fi
   fi
 
+  # Resolve the per-manager min-age threshold inline. _zpun_min_age_threshold
+  # isn't necessarily available here (the provider runs in a per-manager
+  # timeout subshell that only sources config.zsh + this file), so mirror
+  # the inheritance rule directly: per-manager override wins over the global,
+  # even when it's set to 0.
+  local threshold
+  if (( ${+zsh_pkg_update_nag_min_age_cargo} )); then
+    threshold=${zsh_pkg_update_nag_min_age_cargo:-0}
+  else
+    threshold=${zsh_pkg_update_nag_min_age:-0}
+  fi
+
+  local -a list_cmd
+  list_cmd=( cargo install-update --list )
+  if (( threshold > 0 )); then
+    if (( major >= 20 )); then
+      list_cmd+=( --cooldown "${threshold}d" )
+    else
+      _zpun_debug_log "cargo: cargo-install-update ${version_line##* } lacks --cooldown (need ≥ 20.0.0); min_age not enforced"
+    fi
+  fi
+
   local raw
-  raw=$(cargo install-update --list 2>/dev/null) || return 0
+  raw=$("${list_cmd[@]}" 2>/dev/null) || return 0
   [[ -n $raw ]] || return 0
 
   # Output looks like:
@@ -64,23 +102,7 @@ _zpun_provider_cargo() {
   done <<< "$raw" | _zpun_filter_by_allowlist cargo
 }
 
-# _zpun_min_age_lookup_cargo <name> <version> — crates.io JSON API.
-# crates.io requires a User-Agent header; without one the API returns 403.
-_zpun_min_age_lookup_cargo() {
-  emulate -L zsh
-  setopt local_options
-
-  local name=$1 version=$2
-  (( $+commands[curl] && $+commands[jq] )) || return 1
-
-  local json
-  json=$(curl -fsSL --max-time 5 \
-    -A "zsh-pkg-update-nag (https://github.com/madisonrickert/zsh-pkg-update-nag)" \
-    "https://crates.io/api/v1/crates/${name}/${version}" 2>/dev/null) || return 1
-  [[ -n $json ]] || return 1
-
-  local iso
-  iso=$(print -r -- "$json" | jq -r '.version.created_at // empty' 2>/dev/null)
-  [[ -n $iso && $iso != null ]] || return 1
-  _zpun_min_age_parse_iso8601 "$iso"
-}
+# No _zpun_min_age_lookup_cargo — cargo-update's --cooldown does the filtering
+# at the provider level, so per-row gating in _zpun_min_age_satisfied is a
+# no-op (it fails-open when the lookup function is undefined, which is
+# exactly what we want once the provider has already filtered).
