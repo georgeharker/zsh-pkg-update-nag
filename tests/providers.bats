@@ -73,6 +73,33 @@ teardown() { teardown_env ; }
   [ -z "$output" ]
 }
 
+@test "cargo provider forwards --cooldown when min_age threshold is set" {
+  # Fixture's default mode emits no Yes rows when --cooldown is passed,
+  # simulating native cargo-update cooldown filtering. A configured
+  # threshold should round-trip through the fixture as an empty result set.
+  run run_plugin_zsh "zsh_pkg_update_nag_min_age_cargo=7; _zpun_provider_cargo"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "cargo provider omits --cooldown when min_age is 0" {
+  # Sanity: without a threshold, the full outdated set comes through (the
+  # fixture only suppresses rows when --cooldown is on the command line).
+  run run_plugin_zsh "_zpun_provider_cargo"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ripgrep	13.0.0	14.1.0"* ]]
+}
+
+@test "cargo provider skips --cooldown on legacy cargo-update lacking the flag" {
+  # 'old' mode's --help omits --cooldown; the provider should detect that
+  # and not pass the flag, surfacing every Yes row unfiltered even when
+  # min_age is set. We log the degradation but don't block the scan.
+  ZPUN_FIXTURE_CARGO=old run run_plugin_zsh "zsh_pkg_update_nag_min_age_cargo=7; _zpun_provider_cargo"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ripgrep	13.0.0	14.1.0"* ]]
+  [[ "$output" == *"cargo-edit	0.12.0	0.13.0"* ]]
+}
+
 @test "cargo provider skips silently when another cargo holds the package-cache lock" {
   # Simulate a concurrent cargo process by holding an exclusive flock on the
   # package-cache file in a background subshell while the provider runs.

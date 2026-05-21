@@ -224,18 +224,6 @@ teardown() { teardown_env ; }
   [ "$output" = "1579091696" ]
 }
 
-@test "cargo lookup returns epoch from crates.io curl fixture" {
-  run run_plugin_zsh "_zpun_min_age_lookup_cargo ripgrep 14.1.0"
-  [ "$status" -eq 0 ]
-  [ "$output" = "1579091696" ]
-}
-
-@test "cargo lookup returns nothing when curl fixture is in 'missing' mode" {
-  ZPUN_FIXTURE_CURL=missing run run_plugin_zsh "_zpun_min_age_lookup_cargo ripgrep 14.1.0"
-  [ "$status" -eq 1 ]
-  [ -z "$output" ]
-}
-
 @test "brew lookup returns epoch from GitHub curl fixture" {
   run run_plugin_zsh "_zpun_min_age_lookup_brew cmake 4.3.2"
   [ "$status" -eq 0 ]
