@@ -11,6 +11,7 @@
 #   https://pypi.org/pypi/<pkg>/json
 #   https://rubygems.org/api/v1/versions/<pkg>.json
 #   https://registry.npmjs.org/<pkg>
+#   https://crates.io/api/v1/crates/<pkg>/<version>
 #   https://api.github.com/repos/Homebrew/homebrew-(core|cask)/commits?path=...
 # Anything else falls through to a silent exit 0.
 
@@ -87,6 +88,16 @@ case "$url" in
       printf '{"number":"3.13.0","created_at":"%s"},' "$ts"
       printf '{"number":"1.0.0","created_at":"%s"}'   "$ts"
       printf ']\n'
+    fi
+    ;;
+  *crates.io/api/v1/crates/*)
+    # URL form: .../crates/<name>/<version>. Response body wraps the version
+    # entry in a `.version` object with `.created_at`. `missing` mode returns
+    # a valid JSON envelope with no created_at so the lookup fails-open.
+    if [ "$mode" = "missing" ]; then
+      printf '{"version":{}}\n'
+    else
+      printf '{"version":{"created_at":"%sZ"}}\n' "$ts"
     fi
     ;;
   *api.github.com/repos/Homebrew/homebrew-core/commits*)

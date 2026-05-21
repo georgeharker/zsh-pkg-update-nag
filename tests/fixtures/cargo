@@ -1,0 +1,57 @@
+#!/bin/sh
+# Fixture: pretends to be `cargo`. Honors ZPUN_FIXTURE_CARGO:
+#
+#   default | unset — emit two outdated rows (ripgrep, cargo-edit) plus one
+#                     up-to-date row (cargo-update) in the cargo-update table
+#                     format.
+#   empty            — emit only rows with "No" in the Needs-update column.
+#   missing          — `cargo install-update --version` exits non-zero,
+#                      simulating cargo-update not being installed.
+#   fail             — `cargo install-update --list` exits non-zero.
+#
+# Also recognizes `cargo install-update <pkg>` as the per-package upgrade.
+
+case "$1 $2" in
+  "install-update --version")
+    case "${ZPUN_FIXTURE_CARGO:-default}" in
+      missing) exit 101 ;;  # cargo's "no such subcommand" exit code
+      *)
+        echo "cargo-install-update 12.0.0"
+        exit 0
+        ;;
+    esac
+    ;;
+  "install-update --list")
+    case "${ZPUN_FIXTURE_CARGO:-default}" in
+      missing) exit 101 ;;
+      fail)
+        echo "cargo fixture: simulated failure" >&2
+        exit 1
+        ;;
+      empty)
+        cat <<'OUT'
+Package        Installed  Latest    Needs update
+cargo-update   v12.0.0    v12.0.0   No
+OUT
+        exit 0
+        ;;
+      *)
+        cat <<'OUT'
+Package        Installed  Latest    Needs update
+ripgrep        v13.0.0    v14.1.0   Yes
+cargo-edit     v0.12.0    v0.13.0   Yes
+cargo-update   v12.0.0    v12.0.0   No
+OUT
+        exit 0
+        ;;
+    esac
+    ;;
+esac
+
+# `cargo install-update <pkg>` — per-package upgrade dispatch.
+if [ "$1" = "install-update" ] && [ -n "$2" ]; then
+  echo "cargo fixture upgraded: $2"
+  exit 0
+fi
+
+exit 0
