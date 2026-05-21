@@ -73,6 +73,35 @@ teardown() { teardown_env ; }
   [ -z "$output" ]
 }
 
+@test "cargo provider skips silently when another cargo holds the package-cache lock" {
+  # Simulate a concurrent cargo process by holding an exclusive flock on the
+  # package-cache file in a background subshell while the provider runs.
+  mkdir -p "$TMP_DIR/cargo-home"
+  : > "$TMP_DIR/cargo-home/.package-cache"
+
+  CARGO_HOME="$TMP_DIR/cargo-home" run run_plugin_zsh '
+    zmodload zsh/system
+    coproc { zsystem flock "$CARGO_HOME/.package-cache" && read -r _ }
+    # Wait until the coprocess has acquired the lock — probe non-blockingly
+    # ourselves until acquisition fails, which means the coproc holds it.
+    integer i=0
+    while (( i++ < 50 )); do
+      if ! ( zsystem flock -t 0 "$CARGO_HOME/.package-cache" ) 2>/dev/null; then
+        break
+      fi
+      sleep 0.05
+    done
+    _zpun_provider_cargo
+    # Release the coprocess so it can exit cleanly.
+    print -p done
+    wait
+  '
+  [ "$status" -eq 0 ]
+  # The fixture would normally emit ripgrep + cargo-edit rows; the lock probe
+  # should bail before invoking the fixture, leaving stdout empty.
+  [ -z "$output" ]
+}
+
 @test "allowlist filters brew results" {
   run run_plugin_zsh "zsh_pkg_update_nag_brew=(gh); _zpun_config_load; _zpun_provider_brew"
   [ "$status" -eq 0 ]
