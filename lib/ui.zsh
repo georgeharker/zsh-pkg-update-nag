@@ -413,7 +413,7 @@ _zpun_ui_print_env() {
   fi
 
   print -r -- "zsh-pkg-update-nag"
-  print -r -- "  version:       $(_zpun_version 2>/dev/null || print 0.1.0)"
+  print -r -- "  version:       $(_zpun_version 2>/dev/null || print 0.3.0)"
   print -r -- "  plugin dir:    $_ZPUN_DIR"
   print -r -- "  state dir:     $(_zpun_state_dir)"
   print -r -- "  interval:      ${zsh_pkg_update_nag_interval_hours}h"
@@ -448,4 +448,4 @@ _zpun_ui_print_env() {
   done
 }
 
-_zpun_version() { print -r -- "0.1.0" }
+_zpun_version() { print -r -- "0.3.0" }
