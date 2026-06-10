@@ -1,6 +1,10 @@
 # zsh-pkg-update-nag
 
-[![CI](https://github.com/madisonrickert/zsh-pkg-update-nag/actions/workflows/ci.yml/badge.svg)](https://github.com/madisonrickert/zsh-pkg-update-nag/actions/workflows/ci.yml)
+[![CI](https://github.com/georgeharker/zsh-pkg-update-nag/actions/workflows/ci.yml/badge.svg)](https://github.com/georgeharker/zsh-pkg-update-nag/actions/workflows/ci.yml)
+## About
+
+This is a fork of [madisonrickert's original](https://github.com/madisonrickert/zsh-pkg-update-nag) which adds cargo support
+
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Shell: zsh](https://img.shields.io/badge/shell-zsh%205%2B-green)](https://www.zsh.org/)
 [![Platforms: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)]()
@@ -39,7 +43,7 @@ Pick whichever matches your setup.
 Clone into the custom-plugins directory:
 
 ```sh
-git clone https://github.com/madisonrickert/zsh-pkg-update-nag \
+git clone https://github.com/georgeharker/zsh-pkg-update-nag \
   "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-pkg-update-nag"
 ```
 
@@ -49,14 +53,14 @@ Add `zsh-pkg-update-nag` to the `plugins=(...)` array in your `~/.zshrc`, then `
 
 ```zsh
 # in ~/.zshrc
-zinit light madisonrickert/zsh-pkg-update-nag
+zinit light georgeharker/zsh-pkg-update-nag
 ```
 
 ### antidote
 
 ```sh
 # in ~/.zsh_plugins.txt
-madisonrickert/zsh-pkg-update-nag
+georgeharker/zsh-pkg-update-nag
 ```
 
 ### zdot
@@ -71,7 +75,7 @@ zdot_load_module update-nag
 ### Standalone (plain zsh)
 
 ```sh
-git clone https://github.com/madisonrickert/zsh-pkg-update-nag ~/.zsh-pkg-update-nag
+git clone https://github.com/georgeharker/zsh-pkg-update-nag ~/.zsh-pkg-update-nag
 echo 'source ~/.zsh-pkg-update-nag/zsh-pkg-update-nag.plugin.zsh' >> ~/.zshrc
 exec zsh
 ```
@@ -250,10 +254,10 @@ rm -rf "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-pkg-update-nag"
 # remove `zsh-pkg-update-nag` from the plugins=(...) array in ~/.zshrc
 
 # zinit
-# remove `zinit light madisonrickert/zsh-pkg-update-nag` from ~/.zshrc
+# remove `zinit light georgeharker/zsh-pkg-update-nag` from ~/.zshrc
 
 # antidote
-# remove `madisonrickert/zsh-pkg-update-nag` from ~/.zsh_plugins.txt
+# remove `georgeharker/zsh-pkg-update-nag` from ~/.zsh_plugins.txt
 
 # zdot
 # remove `zdot_load_module update-nag` from your .zshrc
