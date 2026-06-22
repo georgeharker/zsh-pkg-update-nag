@@ -24,6 +24,26 @@ _zpun_provider_gem() {
   done <<< "$raw" | _zpun_filter_by_allowlist gem
 }
 
+# _zpun_min_age_versions_gem <name> — full version history from RubyGems.
+# `versions.json` carries a `prerelease` boolean per version; yanked versions
+# are omitted by the API. Resolve-mode (see lib/min_age.zsh).
+_zpun_min_age_versions_gem() {
+  emulate -L zsh
+  setopt local_options
+
+  local name=$1
+  (( $+commands[curl] && $+commands[jq] )) || return 1
+  local json
+  json=$(curl -fsSL --max-time 5 "https://rubygems.org/api/v1/versions/${name}.json" 2>/dev/null) || return 1
+  [[ -n $json ]] || return 1
+
+  print -r -- "$json" | jq -r '
+    .[]
+    | [.number, .created_at,
+       (if (.prerelease == true) then "prerelease" else "stable" end)] | @tsv
+  ' 2>/dev/null | _zpun_min_age_emit_versions_from_iso_tsv
+}
+
 # _zpun_min_age_lookup_gem <name> <version> — RubyGems JSON API.
 _zpun_min_age_lookup_gem() {
   emulate -L zsh

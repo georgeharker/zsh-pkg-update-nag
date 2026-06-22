@@ -88,12 +88,13 @@ case "$url" in
     ;;
   *rubygems.org/api/v1/versions/*.json)
     if [ "$mode" = "missing" ]; then
-      printf '[{"number":"0.0.0","created_at":"%s"}]\n' "$ts"
+      printf '[{"number":"0.0.0","created_at":"%s","prerelease":false}]\n' "$ts"
     else
       printf '['
-      printf '{"number":"7.2.0","created_at":"%s"},' "$ts"
-      printf '{"number":"3.13.0","created_at":"%s"},' "$ts"
-      printf '{"number":"1.0.0","created_at":"%s"}'   "$ts"
+      printf '{"number":"7.2.0","created_at":"%s","prerelease":false},' "$ts"
+      printf '{"number":"3.13.0","created_at":"%s","prerelease":false},' "$ts"
+      printf '{"number":"7.3.0.beta1","created_at":"%s","prerelease":true},' "$ts"
+      printf '{"number":"1.0.0","created_at":"%s","prerelease":false}'   "$ts"
       printf ']\n'
     fi
     ;;
