@@ -532,7 +532,8 @@ git commit -m "feat(min-age): add resolve-mode target selector"
 **Interfaces:**
 - Consumes: `_zpun_min_age_parse_iso8601` (existing).
 - Produces:
-  - `_zpun_min_age_emit_versions_from_npm_doc` — reads an npm/registry JSON document on stdin, emits `version\tepoch\tstatus` rows. Status: `yanked` if `.versions[v].deprecated` is set, else `prerelease` if the version contains `-`, else `stable`.
+  - `_zpun_min_age_emit_versions_from_iso_tsv` — reads `version\tiso\tstatus` rows on stdin, converts each ISO date to epoch seconds, emits `version\tepoch\tstatus`. Shared by every resolve-mode hook so the conversion loop lives in one place.
+  - `_zpun_min_age_emit_versions_from_npm_doc` — reads an npm/registry JSON document on stdin, emits `version\tepoch\tstatus` rows. Status: `yanked` if `.versions[v].deprecated` is set, else `prerelease` if the version contains `-`, else `stable`. Built on `_zpun_min_age_emit_versions_from_iso_tsv`.
   - `_zpun_min_age_versions_npm <name>` — `npm view <name> --json` piped through the shared parser.
 
 - [ ] **Step 1: Write the failing test**
@@ -568,9 +569,25 @@ Expected: FAIL — hook not defined.
 
 - [ ] **Step 3: Write minimal implementation**
 
-3a. Append the shared parser to `lib/min_age.zsh`:
+3a. Append the shared parsers to `lib/min_age.zsh`:
 
 ```zsh
+# _zpun_min_age_emit_versions_from_iso_tsv — read `version\tiso\tstatus` rows on
+# stdin, convert each ISO date to epoch seconds, emit `version\tepoch\tstatus`.
+# Shared by every resolve-mode versions hook (npm/pnpm via the npm-doc parser,
+# uv, gem) so the date-conversion loop lives in exactly one place.
+_zpun_min_age_emit_versions_from_iso_tsv() {
+  emulate -L zsh
+  setopt local_options
+  local ver iso status epoch
+  while IFS=$'\t' read -r ver iso status; do
+    [[ -n $ver && -n $iso ]] || continue
+    epoch=$(_zpun_min_age_parse_iso8601 "$iso") || continue
+    [[ -n $epoch && $epoch == <-> ]] || continue
+    print -r -- "${ver}"$'\t'"${epoch}"$'\t'"${status}"
+  done
+}
+
 # _zpun_min_age_emit_versions_from_npm_doc — read an npm/registry JSON doc on
 # stdin, emit version\tepoch\tstatus rows. Shared by the npm (CLI) and pnpm
 # (curl) versions hooks: both registries use the same packument shape.
@@ -581,13 +598,7 @@ _zpun_min_age_emit_versions_from_npm_doc() {
   local doc
   doc=$(cat)
   [[ -n $doc ]] || return 1
-  local ver iso status epoch
-  while IFS=$'\t' read -r ver iso status; do
-    [[ -n $ver && -n $iso ]] || continue
-    epoch=$(_zpun_min_age_parse_iso8601 "$iso") || continue
-    [[ -n $epoch && $epoch == <-> ]] || continue
-    print -r -- "${ver}"$'\t'"${epoch}"$'\t'"${status}"
-  done < <(print -r -- "$doc" | jq -r '
+  print -r -- "$doc" | jq -r '
     (.versions // {}) as $v
     | (.time // {})
     | to_entries[]
@@ -597,7 +608,7 @@ _zpun_min_age_emit_versions_from_npm_doc() {
        (if ($v[$k].deprecated != null) then "yanked"
         elif ($k | test("-")) then "prerelease"
         else "stable" end)] | @tsv
-  ' 2>/dev/null)
+  ' 2>/dev/null | _zpun_min_age_emit_versions_from_iso_tsv
 }
 ```
 
@@ -789,7 +800,7 @@ git commit -m "feat(min-age): add pnpm versions hook"
 - Test: `tests/providers.bats` (append)
 
 **Interfaces:**
-- Consumes: `_zpun_min_age_parse_iso8601` (existing).
+- Consumes: `_zpun_min_age_emit_versions_from_iso_tsv` (Task 4).
 - Produces: `_zpun_min_age_versions_uv <name>` — `curl https://pypi.org/pypi/<name>/json`, parsed to `version\tepoch\tstatus`. Status: `yanked` if `.releases[v][0].yanked == true`, else `prerelease` by PEP 440 marker heuristic, else `stable`.
 
 - [ ] **Step 1: Write the failing test**
@@ -836,13 +847,7 @@ _zpun_min_age_versions_uv() {
   json=$(curl -fsSL --max-time 5 "https://pypi.org/pypi/${name}/json" 2>/dev/null) || return 1
   [[ -n $json ]] || return 1
 
-  local ver iso status epoch
-  while IFS=$'\t' read -r ver iso status; do
-    [[ -n $ver && -n $iso ]] || continue
-    epoch=$(_zpun_min_age_parse_iso8601 "$iso") || continue
-    [[ -n $epoch && $epoch == <-> ]] || continue
-    print -r -- "${ver}"$'\t'"${epoch}"$'\t'"${status}"
-  done < <(print -r -- "$json" | jq -r '
+  print -r -- "$json" | jq -r '
     .releases // {}
     | to_entries[]
     | select((.value | length) > 0)
@@ -853,7 +858,7 @@ _zpun_min_age_versions_uv() {
        (if (.value[0].yanked == true) then "yanked"
         elif ($k | test("(?i)(a|b|rc|alpha|beta|dev|pre)[0-9]*$")) then "prerelease"
         else "stable" end)] | @tsv
-  ' 2>/dev/null)
+  ' 2>/dev/null | _zpun_min_age_emit_versions_from_iso_tsv
 }
 ```
 
@@ -899,7 +904,7 @@ git commit -m "feat(min-age): add uv versions hook"
 - Test: `tests/providers.bats` (append)
 
 **Interfaces:**
-- Consumes: `_zpun_min_age_parse_iso8601` (existing).
+- Consumes: `_zpun_min_age_emit_versions_from_iso_tsv` (Task 4).
 - Produces: `_zpun_min_age_versions_gem <name>` — `curl https://rubygems.org/api/v1/versions/<name>.json`, parsed to `version\tepoch\tstatus`. Status: `prerelease` from the `prerelease` flag, else `stable` (RubyGems omits yanked versions).
 
 - [ ] **Step 1: Write the failing test**
@@ -944,17 +949,11 @@ _zpun_min_age_versions_gem() {
   json=$(curl -fsSL --max-time 5 "https://rubygems.org/api/v1/versions/${name}.json" 2>/dev/null) || return 1
   [[ -n $json ]] || return 1
 
-  local ver iso status epoch
-  while IFS=$'\t' read -r ver iso status; do
-    [[ -n $ver && -n $iso ]] || continue
-    epoch=$(_zpun_min_age_parse_iso8601 "$iso") || continue
-    [[ -n $epoch && $epoch == <-> ]] || continue
-    print -r -- "${ver}"$'\t'"${epoch}"$'\t'"${status}"
-  done < <(print -r -- "$json" | jq -r '
+  print -r -- "$json" | jq -r '
     .[]
     | [.number, .created_at,
        (if (.prerelease == true) then "prerelease" else "stable" end)] | @tsv
-  ' 2>/dev/null)
+  ' 2>/dev/null | _zpun_min_age_emit_versions_from_iso_tsv
 }
 ```
 
