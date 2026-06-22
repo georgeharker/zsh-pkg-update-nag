@@ -72,7 +72,6 @@ _zpun_min_age_versions_uv() {
     | select((.value | length) > 0)
     | .key as $k
     | (.value[0].upload_time // .value[0].upload_time_iso_8601 // empty) as $t
-    | select($t != null)
     | [$k, $t,
        (if (.value[0].yanked == true) then "yanked"
         elif ($k | test("(?i)(a|b|rc|alpha|beta|dev|pre)[0-9]*$")) then "prerelease"

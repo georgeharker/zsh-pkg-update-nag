@@ -373,6 +373,7 @@ _zpun_min_age_emit_versions_from_npm_doc() {
     | to_entries[]
     | select(.key != "created" and .key != "modified")
     | .key as $k
+    | select($v[$k] != null)
     | [$k, .value,
        (if ($v[$k].deprecated != null) then "yanked"
         elif ($k | test("-")) then "prerelease"

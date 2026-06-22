@@ -22,6 +22,7 @@ case "$1 $2" in
           printf '"modified":"%s",' "$now"
           printf '"5.5.0":"%s",' "$now"
           printf '"5.5.0-rc.1":"%s",' "$old"
+          printf '"5.4.6":"%s",' "$old"
           printf '"5.4.5":"%s",' "$old"
           printf '"5.4.0":"%s",' "$old"
           printf '"9.5.1":"%s",' "$now"

@@ -162,6 +162,8 @@ teardown() { teardown_env ; }
   # header keys must not leak as versions
   [[ "$output" != *"created"* ]]
   [[ "$output" != *"modified"* ]]
+  # unpublished version (in .time but not .versions) must be excluded
+  [[ "$output" != *$'5.4.6\t'* ]]
 }
 
 @test "npm versions hook returns non-zero on fetch failure" {
