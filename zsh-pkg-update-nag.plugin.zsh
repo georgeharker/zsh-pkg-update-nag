@@ -174,19 +174,24 @@ _zpun_timeout_prefix() {
 }
 
 # _zpun_run_upgrade — execute a single upgrade command array-style.
-# Arguments: <manager> <package>
+# Arguments: <manager> <package> [<version>]
+# When version is provided, pins to that exact version (npm/pnpm/uv/gem).
+# When omitted, falls back to latest-tracking commands.
+# brew always uses `brew upgrade <pkg>` (version arg is ignored).
 _zpun_run_upgrade() {
   emulate -L zsh
   setopt local_options
 
-  local manager=$1 pkg=$2
+  local manager=$1 pkg=$2 version=${3:-}
   local -a cmd
   case $manager in
     brew) cmd=(brew upgrade "$pkg") ;;
-    npm)  cmd=(npm install -g "${pkg}@latest") ;;
-    pnpm) cmd=(pnpm add -g "${pkg}@latest") ;;
-    uv)   cmd=(uv tool upgrade "$pkg") ;;
-    gem)  cmd=(gem update "$pkg") ;;
+    npm)  cmd=(npm install -g "${pkg}@${version:-latest}") ;;
+    pnpm) cmd=(pnpm add -g "${pkg}@${version:-latest}") ;;
+    uv)   if [[ -n $version ]]; then cmd=(uv tool install --force "${pkg}==${version}")
+          else cmd=(uv tool upgrade "$pkg"); fi ;;
+    gem)  if [[ -n $version ]]; then cmd=(gem install "$pkg" -v "$version")
+          else cmd=(gem update "$pkg"); fi ;;
     cargo) cmd=(cargo install-update "$pkg") ;;
     *)    _zpun_ui_error "unknown manager: $manager"; return 2 ;;
   esac

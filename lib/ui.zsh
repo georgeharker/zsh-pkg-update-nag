@@ -360,12 +360,13 @@ _zpun_ui_upgrade_all() {
   emulate -L zsh
   setopt local_options
 
-  local line manager pkg
+  local line manager pkg ver
   for line in "$@"; do
     (( ${_ZPUN_INTERRUPTED:-0} )) && { _zpun_ui_info "Stopped (Ctrl-C)."; return; }
     manager=${${(s:	:)line}[1]}
     pkg=${${(s:	:)line}[2]}
-    _zpun_run_upgrade "$manager" "$pkg" || _zpun_ui_error "  upgrade failed for ${manager} ${pkg}"
+    ver=${${(s:	:)line}[4]}
+    _zpun_run_upgrade "$manager" "$pkg" "$ver" || _zpun_ui_error "  upgrade failed for ${manager} ${pkg}"
   done
   _zpun_ui_ok "Done."
 }
@@ -384,7 +385,7 @@ _zpun_ui_upgrade_individually() {
 
     choice=$(_zpun_ui_read_choice "update ${manager} ${pkg} ${cur} → ${lat}? [Y/n]" "yn" "y")
     if [[ $choice == y ]]; then
-      _zpun_run_upgrade "$manager" "$pkg" || _zpun_ui_error "  upgrade failed for ${manager} ${pkg}"
+      _zpun_run_upgrade "$manager" "$pkg" "$lat" || _zpun_ui_error "  upgrade failed for ${manager} ${pkg}"
     fi
   done
   _zpun_ui_ok "Done."

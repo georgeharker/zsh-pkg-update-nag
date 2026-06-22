@@ -126,13 +126,31 @@ teardown() { teardown_env ; }
   [[ "$output" != *"update brew gh"* ]]
 }
 
-@test "_zpun_run_upgrade builds correct command per manager" {
-  run run_plugin_zsh "_zpun_run_upgrade brew pnpm; _zpun_run_upgrade npm typescript; _zpun_run_upgrade gem rails; _zpun_run_upgrade cargo ripgrep"
+@test "_zpun_run_upgrade builds correct pinned command per manager" {
+  run run_plugin_zsh "
+    _zpun_run_upgrade brew pnpm
+    _zpun_run_upgrade npm typescript 5.4.5
+    _zpun_run_upgrade pnpm rollup 4.30.5
+    _zpun_run_upgrade uv ruff 0.6.3
+    _zpun_run_upgrade gem rails 7.1.5
+    _zpun_run_upgrade cargo ripgrep 14.1.0
+  "
   [ "$status" -eq 0 ]
   [[ "$output" == *"brew upgrade pnpm"* ]]
+  [[ "$output" == *"npm install -g typescript@5.4.5"* ]]
+  [[ "$output" == *"pnpm add -g rollup@4.30.5"* ]]
+  [[ "$output" == *"uv tool install --force ruff==0.6.3"* ]]
+  [[ "$output" == *"gem install rails -v 7.1.5"* ]]
+  # cargo ignores the version arg: cargo-update has no pinned-install path here,
+  # so it upgrades to latest regardless (documented gap).
+  [[ "$output" == *"cargo install-update ripgrep"* ]]
+}
+
+@test "_zpun_run_upgrade without a version falls back to latest-tracking" {
+  run run_plugin_zsh "_zpun_run_upgrade npm typescript; _zpun_run_upgrade gem rails"
+  [ "$status" -eq 0 ]
   [[ "$output" == *"npm install -g typescript@latest"* ]]
   [[ "$output" == *"gem update rails"* ]]
-  [[ "$output" == *"cargo install-update ripgrep"* ]]
 }
 
 @test "collect resolve-mode rewrites npm row to held-back target" {

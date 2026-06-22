@@ -20,6 +20,10 @@ case "$1 $2" in
 esac
 case "$1" in
   tool)
+    if [ "$2" = "install" ]; then
+      echo "uv fixture installed: $*"
+      exit 0
+    fi
     if [ "$2" = "upgrade" ]; then
       echo "uv fixture upgraded: $3"
       exit 0

@@ -11,6 +11,10 @@ case "$1" in
         ;;
     esac
     ;;
+  install)
+    echo "gem fixture installed: $*"
+    exit 0
+    ;;
   update)
     echo "gem fixture updated: $2"
     exit 0
