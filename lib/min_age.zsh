@@ -339,6 +339,47 @@ _zpun_min_age_resolve_target() {
   return 0
 }
 
+# _zpun_min_age_emit_versions_from_iso_tsv — read `version\tiso\tstatus` rows on
+# stdin, convert each ISO date to epoch seconds, emit `version\tepoch\tstatus`.
+# Shared by every resolve-mode versions hook (npm/pnpm via the npm-doc parser,
+# uv, gem) so the date-conversion loop lives in exactly one place.
+_zpun_min_age_emit_versions_from_iso_tsv() {
+  emulate -L zsh
+  setopt local_options
+  # NOTE: `status` is a read-only special variable in zsh (aliases $?); the
+  # per-version state field is read into `vstatus`.
+  local ver iso vstatus epoch
+  while IFS=$'\t' read -r ver iso vstatus; do
+    [[ -n $ver && -n $iso ]] || continue
+    epoch=$(_zpun_min_age_parse_iso8601 "$iso") || continue
+    [[ -n $epoch && $epoch == <-> ]] || continue
+    print -r -- "${ver}"$'\t'"${epoch}"$'\t'"${vstatus}"
+  done
+}
+
+# _zpun_min_age_emit_versions_from_npm_doc — read an npm/registry JSON doc on
+# stdin, emit version\tepoch\tstatus rows. Shared by the npm (CLI) and pnpm
+# (curl) versions hooks: both registries use the same packument shape.
+_zpun_min_age_emit_versions_from_npm_doc() {
+  emulate -L zsh
+  setopt local_options
+  (( $+commands[jq] )) || return 1
+  local doc
+  doc=$(cat)
+  [[ -n $doc ]] || return 1
+  print -r -- "$doc" | jq -r '
+    (.versions // {}) as $v
+    | (.time // {})
+    | to_entries[]
+    | select(.key != "created" and .key != "modified")
+    | .key as $k
+    | [$k, .value,
+       (if ($v[$k].deprecated != null) then "yanked"
+        elif ($k | test("-")) then "prerelease"
+        else "stable" end)] | @tsv
+  ' 2>/dev/null | _zpun_min_age_emit_versions_from_iso_tsv
+}
+
 # _zpun_version_compare <a> <b> — print -1 if a<b, 0 if a==b, 1 if a>b.
 # Pure zsh (macOS `sort` has no -V). Splits on '.', compares segments
 # numerically (zero-padding the shorter), and falls back to lexical compare

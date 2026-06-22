@@ -62,3 +62,18 @@ _zpun_min_age_lookup_npm() {
   [[ -n $iso && $iso != null ]] || return 1
   _zpun_min_age_parse_iso8601 "$iso"
 }
+
+# _zpun_min_age_versions_npm <name> — full version history via the npm CLI
+# (`npm view <name> --json` returns the packument: a .time map plus per-version
+# .versions objects carrying `deprecated`). Resolve-mode (see lib/min_age.zsh).
+_zpun_min_age_versions_npm() {
+  emulate -L zsh
+  setopt local_options
+
+  local name=$1
+  (( $+commands[npm] && $+commands[jq] )) || return 1
+  local doc
+  doc=$(npm view "$name" --json 2>/dev/null) || return 1
+  [[ -n $doc ]] || return 1
+  print -r -- "$doc" | _zpun_min_age_emit_versions_from_npm_doc
+}

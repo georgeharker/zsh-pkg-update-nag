@@ -6,6 +6,39 @@ case "$1 $2" in
     exit 0
     ;;
   "view "*)
+    # `npm view <pkg> --json` — full packument for the versions hook.
+    if [ "$3" = "--json" ]; then
+      case "${ZPUN_FIXTURE_NPM_VERSIONS:-default}" in
+        fail) exit 1 ;;
+        *)
+          now=$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')
+          old='2020-01-15T12:34:56.000Z'
+          # When NPM_AGE=fresh, make every prior version "now" too, so resolve
+          # mode finds no old-enough candidate and hides the row (this mirrors
+          # the gate-era "fresh updates are dropped" integration test).
+          [ "${ZPUN_FIXTURE_NPM_AGE:-}" = "fresh" ] && old="$now"
+          printf '{"time":{'
+          printf '"created":"2012-10-01T15:35:39.553Z",'
+          printf '"modified":"%s",' "$now"
+          printf '"5.5.0":"%s",' "$now"
+          printf '"5.5.0-rc.1":"%s",' "$old"
+          printf '"5.4.5":"%s",' "$old"
+          printf '"5.4.0":"%s",' "$old"
+          printf '"9.5.1":"%s",' "$now"
+          printf '"9.0.0":"%s"' "$old"
+          printf '},"versions":{'
+          printf '"5.5.0":{},'
+          printf '"5.5.0-rc.1":{},'
+          printf '"5.4.5":{},'
+          printf '"5.4.0":{"deprecated":"use 5.4.5"},'
+          printf '"9.5.1":{},'
+          printf '"9.0.0":{}'
+          printf '}}\n'
+          exit 0
+          ;;
+      esac
+    fi
+    # ...existing `npm view <pkg> time --json` handling continues below...
     # `npm view <pkg> time --json` for the min-age lookup. Returns the JSON
     # object mapping version strings to ISO-8601 timestamps, mirroring real
     # npm. Honors ZPUN_FIXTURE_NPM_AGE: default|old → 2020 stamps, fresh →

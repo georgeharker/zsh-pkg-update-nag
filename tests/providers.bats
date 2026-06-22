@@ -149,3 +149,23 @@ teardown() { teardown_env ; }
   [ "$status" -eq 0 ]
   [[ "$output" == *"DISABLED"* ]]
 }
+
+@test "npm versions hook classifies stable/prerelease/yanked" {
+  run run_plugin_zsh "_zpun_min_age_versions_npm typescript"
+  [ "$status" -eq 0 ]
+  # stable release
+  [[ "$output" == *$'5.4.5\t'*$'\tstable'* ]]
+  # prerelease (semver -)
+  [[ "$output" == *$'5.5.0-rc.1\t'*$'\tprerelease'* ]]
+  # deprecated → yanked
+  [[ "$output" == *$'5.4.0\t'*$'\tyanked'* ]]
+  # header keys must not leak as versions
+  [[ "$output" != *"created"* ]]
+  [[ "$output" != *"modified"* ]]
+}
+
+@test "npm versions hook returns non-zero on fetch failure" {
+  ZPUN_FIXTURE_NPM_VERSIONS=fail run run_plugin_zsh "_zpun_min_age_versions_npm typescript"
+  [ "$status" -ne 0 ]
+  [ -z "$output" ]
+}
