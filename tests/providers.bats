@@ -169,3 +169,17 @@ teardown() { teardown_env ; }
   [ "$status" -ne 0 ]
   [ -z "$output" ]
 }
+
+@test "pnpm versions hook classifies stable/prerelease/yanked from registry" {
+  run run_plugin_zsh "_zpun_min_age_versions_pnpm rollup"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'5.1.0\t'*$'\tstable'* ]]
+  [[ "$output" == *$'5.2.0-rc.1\t'*$'\tprerelease'* ]]
+  [[ "$output" == *$'4.0.0\t'*$'\tyanked'* ]]
+}
+
+@test "pnpm versions hook returns non-zero on curl failure" {
+  ZPUN_FIXTURE_CURL=fail run run_plugin_zsh "_zpun_min_age_versions_pnpm rollup"
+  [ "$status" -ne 0 ]
+  [ -z "$output" ]
+}

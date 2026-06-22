@@ -48,3 +48,18 @@ _zpun_min_age_lookup_pnpm() {
   [[ -n $iso && $iso != null ]] || return 1
   _zpun_min_age_parse_iso8601 "$iso"
 }
+
+# _zpun_min_age_versions_pnpm <name> — full version history from the npm
+# registry (pnpm resolves from the same registry). Same packument shape as
+# npm, so we reuse the shared parser. Resolve-mode (see lib/min_age.zsh).
+_zpun_min_age_versions_pnpm() {
+  emulate -L zsh
+  setopt local_options
+
+  local name=$1
+  (( $+commands[curl] && $+commands[jq] )) || return 1
+  local json
+  json=$(curl -fsSL --max-time 5 "https://registry.npmjs.org/${name}" 2>/dev/null) || return 1
+  [[ -n $json ]] || return 1
+  print -r -- "$json" | _zpun_min_age_emit_versions_from_npm_doc
+}

@@ -72,9 +72,17 @@ case "$url" in
       printf '{"time":{'
       printf '"created":"%sZ",' "$ts"
       printf '"modified":"%sZ",' "$ts"
+      printf '"4.0.0":"%sZ",' "$ts"
       printf '"4.31.0":"%sZ",' "$ts"
       printf '"5.1.0":"%sZ",'  "$ts"
+      printf '"5.2.0-rc.1":"%sZ",' "$ts"
       printf '"1.0.0":"%sZ"'   "$ts"
+      printf '},"versions":{'
+      printf '"4.0.0":{"deprecated":"old"},'
+      printf '"4.31.0":{},'
+      printf '"5.1.0":{},'
+      printf '"5.2.0-rc.1":{},'
+      printf '"1.0.0":{}'
       printf '}}\n'
     fi
     ;;
