@@ -139,6 +139,7 @@ zsh_pkg_update_nag_min_age=0
 | `ZSH_PKG_UPDATE_NAG_CONFIG` | Override config file path. |
 | `GITHUB_TOKEN` | Used by the brew min-age GraphQL fast path when `gh` isn't available (5000 req/hr). |
 | `ZSH_PKG_UPDATE_NAG_MIN_AGE_LOOKUP_PARALLELISM` | Concurrency for the brew min-age REST fallback (default `6`). Only applies when neither `gh` nor `$GITHUB_TOKEN` is set. |
+| `ZSH_PKG_UPDATE_NAG_MIN_AGE_LIST_TTL` | Seconds to cache a package's version list in resolve mode before refetching (default `86400`). Lower values pick up newly-aged releases sooner at the cost of more registry calls. |
 | `NO_COLOR=1` | Disable color output (per the [NO_COLOR](https://no-color.org) spec). |
 
 ## Background mode
@@ -169,6 +170,14 @@ zsh_pkg_update_nag_min_age_brew=0      # off for brew
 
 Per-manager overrides (`zsh_pkg_update_nag_min_age_<manager>`) win over the global, even when set to `0`. Leave a per-manager variable unset to inherit the global.
 
+For **npm**, **pnpm**, **uv**, and **gem**, when the latest release is younger
+than your `min_age` threshold the plugin does not hide the package. It offers the
+newest stable version that is old enough instead (prereleases and
+yanked/deprecated versions are skipped), and the upgrade is pinned to that exact
+version. If nothing newer than what you have is old enough, the row is hidden,
+same as before. **brew** keeps the simpler behavior: a too-new latest is hidden
+until it ages past the threshold.
+
 ### Prefer the upstream feature when one exists
 
 If your package manager has minimum-release-age built in, use **that** for those packages. It acts at install time (so it also protects ad-hoc installs) and avoids the per-package lookup this plugin does.
@@ -181,6 +190,8 @@ If your package manager has minimum-release-age built in, use **that** for those
 | uv | [`--exclude-newer DATE`](https://docs.astral.sh/uv/reference/cli/#uv-pip-install--exclude-newer) (per-invocation) | This plugin's setting is easier for ongoing use |
 | gem | None | Use this plugin's setting |
 | cargo | [`--cooldown <duration>`](https://github.com/nabijaczleweli/cargo-update/blob/master/man/cargo-install-update.md) on `cargo install-update` (cargo-update ≥ 20.0.0) | This plugin forwards the configured threshold to `--cooldown` automatically. Nothing extra to set up. |
+
+When npm/pnpm/uv/gem lack a native minimum-age setting (or you can't change their config), this plugin resolves to the newest allowed version rather than hiding the package entirely.
 
 ### Performance
 
@@ -196,6 +207,12 @@ Each outdated package needs one publish-date lookup the first time it's seen. Lo
 | cargo | `cargo install-update --list --cooldown <Nd>` (no per-package call from this plugin) | Whatever cargo-update spends refreshing the registry index (roughly one sparse-index fetch per installed cargo binary), bounded by the provider timeout |
 
 Real-world: cold cache, 35 outdated brew packages with `gh` authenticated → about 7 s total. Steady state with cache populated: ~3–4 s regardless of N. Background mode keeps that latency entirely off the startup path. Each provider call is wrapped by `ZSH_PKG_UPDATE_NAG_PROVIDER_TIMEOUT` (default 10 s) so a hung HTTP request can never extend the scan past that cap. If a single manager is too slow even in the background, set its per-manager override to `0` to disable the lookup for it.
+
+Resolve mode (npm/pnpm/uv/gem) fetches each outdated package's full version list
+once and caches it under `version_lists/` with a TTL
+(`ZSH_PKG_UPDATE_NAG_MIN_AGE_LIST_TTL`, default 24h / 86400s), so steady-state
+cost stays near zero within the TTL window. This is the same single registry call
+the prior per-version lookup already made.
 
 ### GitHub auth (brew only)
 
