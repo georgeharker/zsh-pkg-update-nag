@@ -172,11 +172,15 @@ Per-manager overrides (`zsh_pkg_update_nag_min_age_<manager>`) win over the glob
 
 For **npm**, **pnpm**, **uv**, and **gem**, when the latest release is younger
 than your `min_age` threshold the plugin does not hide the package. It offers the
-newest stable version that is old enough instead (prereleases and
-yanked/deprecated versions are skipped), and the upgrade is pinned to that exact
+newest stable version that is old enough instead (prereleases, yanked, and
+unpublished versions are skipped), and the upgrade is pinned to that exact
 version. If nothing newer than what you have is old enough, the row is hidden,
 same as before. **brew** keeps the simpler behavior: a too-new latest is hidden
 until it ages past the threshold.
+
+One per-manager caveat: npm's `npm view` does not expose per-version deprecation,
+so a deprecated-but-still-installable npm version can occasionally be offered.
+pnpm (which reads the registry document directly) does skip deprecated versions.
 
 ### Prefer the upstream feature when one exists
 

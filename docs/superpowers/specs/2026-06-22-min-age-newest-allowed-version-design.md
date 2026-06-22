@@ -136,14 +136,21 @@ The presence of this function is the capability signal: a manager that defines
 
 | Manager | Source (one call) | Stable vs prerelease | Yanked / deprecated |
 |---|---|---|---|
-| npm  | `npm view <name> --json` (full packument: `time` map + `versions` objects) | semver: prerelease iff version contains `-` | `versions[v].deprecated` present → treat as yanked |
-| pnpm | `https://registry.npmjs.org/<name>` via curl + jq (`.time`, `.versions`) | same as npm | `.versions[v].deprecated` present → yanked |
+| npm  | `npm view <name> --json` (config-aware via the npm CLI; `.time` map + `.versions` **array** of strings) | semver: prerelease iff version contains `-` | not available — `npm view --json` exposes no per-version `deprecated`; only unpublished versions are excluded (a `.time` key absent from the `.versions` array) |
+| pnpm | `https://registry.npmjs.org/<name>` via curl + jq (`.time`, `.versions` **object**) | same as npm | `.versions[v].deprecated` present → yanked |
 | uv   | `https://pypi.org/pypi/<name>/json` via curl + jq (`.releases`) | PEP 440 heuristic: prerelease iff version matches `a|b|rc|dev` markers | `.releases[v][].yanked == true` → yanked |
 | gem  | `https://rubygems.org/api/v1/versions/<name>.json` via curl + jq | `.[].prerelease == true` | RubyGems omits yanked versions from this list (naturally absent) |
 
-Note: npm moves from `npm view <name> time --json` (today) to the full
-`npm view <name> --json` to obtain per-version `deprecated`. This is a heavier
-payload but still one call.
+Note: the shared `_zpun_min_age_emit_versions_from_npm_doc` parser handles both
+`.versions` shapes. `npm view <name> --json` (npm CLI, registry/proxy/auth
+aware) returns `.versions` as an array of version strings with no per-version
+metadata, so npm excludes prereleases and unpublished versions but cannot detect
+deprecation. The registry document (`https://registry.npmjs.org/<name>`, used by
+the pnpm hook) returns `.versions` as an object whose manifests carry
+`deprecated`, so pnpm additionally excludes deprecated versions. npm stays on the
+CLI for consistency with `npm outdated -g` and to work on private registries
+(where curling the public registry would 404 and fail open). Empirically
+verified end-to-end against the live npm registry, including scoped packages.
 
 ### Shared selector: `_zpun_min_age_resolve_target <m> <name> <current> <latest>`
 

@@ -150,19 +150,21 @@ teardown() { teardown_env ; }
   [[ "$output" == *"DISABLED"* ]]
 }
 
-@test "npm versions hook classifies stable/prerelease/yanked" {
+@test "npm versions hook classifies stable/prerelease and excludes unpublished" {
   run run_plugin_zsh "_zpun_min_age_versions_npm typescript"
   [ "$status" -eq 0 ]
   # stable release
   [[ "$output" == *$'5.4.5\t'*$'\tstable'* ]]
   # prerelease (semver -)
   [[ "$output" == *$'5.5.0-rc.1\t'*$'\tprerelease'* ]]
-  # deprecated → yanked
-  [[ "$output" == *$'5.4.0\t'*$'\tyanked'* ]]
+  # `npm view --json` returns `.versions` as a plain array with no per-version
+  # deprecation, so a normal version is classified stable. (Deprecation is a
+  # registry-document signal, exercised by the pnpm hook below.)
+  [[ "$output" == *$'5.4.0\t'*$'\tstable'* ]]
   # header keys must not leak as versions
   [[ "$output" != *"created"* ]]
   [[ "$output" != *"modified"* ]]
-  # unpublished version (in .time but not .versions) must be excluded
+  # unpublished version (in .time but absent from the .versions array) excluded
   [[ "$output" != *$'5.4.6\t'* ]]
 }
 

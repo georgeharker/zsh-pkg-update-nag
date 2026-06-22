@@ -27,14 +27,11 @@ case "$1 $2" in
           printf '"5.4.0":"%s",' "$old"
           printf '"9.5.1":"%s",' "$now"
           printf '"9.0.0":"%s"' "$old"
-          printf '},"versions":{'
-          printf '"5.5.0":{},'
-          printf '"5.5.0-rc.1":{},'
-          printf '"5.4.5":{},'
-          printf '"5.4.0":{"deprecated":"use 5.4.5"},'
-          printf '"9.5.1":{},'
-          printf '"9.0.0":{}'
-          printf '}}\n'
+          # Real `npm view <pkg> --json` returns `.versions` as an ARRAY of
+          # version strings (no per-version metadata). 5.4.6 is intentionally
+          # absent here while present in `.time` above, simulating an
+          # unpublished version (a tombstone the parser must drop).
+          printf '},"versions":["5.5.0","5.5.0-rc.1","5.4.5","5.4.0","9.5.1","9.0.0"]}\n'
           exit 0
           ;;
       esac

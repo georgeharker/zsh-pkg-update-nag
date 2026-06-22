@@ -359,7 +359,16 @@ _zpun_min_age_emit_versions_from_iso_tsv() {
 
 # _zpun_min_age_emit_versions_from_npm_doc — read an npm/registry JSON doc on
 # stdin, emit version\tepoch\tstatus rows. Shared by the npm (CLI) and pnpm
-# (curl) versions hooks: both registries use the same packument shape.
+# (curl) versions hooks.
+#
+# `.versions` shape differs by source: the npm CLI (`npm view <pkg> --json`)
+# returns an ARRAY of version strings with no per-version metadata, while the
+# registry document (curl https://registry.npmjs.org/<pkg>) returns an OBJECT
+# map whose values carry `deprecated`. We handle both: $vset is the set of
+# currently-published versions (used to drop unpublished `.time` tombstones),
+# and deprecation is only detectable on the object shape — so npm (CLI) excludes
+# prereleases and unpublished versions, while pnpm (registry) also excludes
+# deprecated ones.
 _zpun_min_age_emit_versions_from_npm_doc() {
   emulate -L zsh
   setopt local_options
@@ -368,14 +377,15 @@ _zpun_min_age_emit_versions_from_npm_doc() {
   doc=$(cat)
   [[ -n $doc ]] || return 1
   print -r -- "$doc" | jq -r '
-    (.versions // {}) as $v
+    (.versions // []) as $v
+    | (if ($v | type) == "object" then ($v | keys) else $v end) as $vset
     | (.time // {})
     | to_entries[]
     | select(.key != "created" and .key != "modified")
     | .key as $k
-    | select($v[$k] != null)
+    | select($vset | index($k))
     | [$k, .value,
-       (if ($v[$k].deprecated != null) then "yanked"
+       (if (($v | type) == "object" and ($v[$k].deprecated != null)) then "yanked"
         elif ($k | test("-")) then "prerelease"
         else "stable" end)] | @tsv
   ' 2>/dev/null | _zpun_min_age_emit_versions_from_iso_tsv
