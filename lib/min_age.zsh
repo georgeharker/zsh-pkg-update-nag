@@ -196,3 +196,33 @@ _zpun_min_age_cache_count() {
   count=${count// /}
   print -r -- "${count:-0}"
 }
+
+# _zpun_version_compare <a> <b> — print -1 if a<b, 0 if a==b, 1 if a>b.
+# Pure zsh (macOS `sort` has no -V). Splits on '.', compares segments
+# numerically (zero-padding the shorter), and falls back to lexical compare
+# for non-numeric segments. Intended for stable versions; prereleases are
+# excluded before this is called. Exotic PEP 440 forms (epochs, post-
+# releases) are best-effort.
+_zpun_version_compare() {
+  emulate -L zsh
+  setopt local_options
+
+  local a=$1 b=$2
+  local -a as bs
+  as=( ${(s:.:)a} )
+  bs=( ${(s:.:)b} )
+  local n=$(( ${#as} > ${#bs} ? ${#as} : ${#bs} ))
+  local i av bv
+  for (( i=1; i <= n; i+=1 )); do
+    av=${as[i]:-0}
+    bv=${bs[i]:-0}
+    if [[ $av == <-> && $bv == <-> ]]; then
+      if (( av > bv )); then print -r -- 1; return 0; fi
+      if (( av < bv )); then print -r -- -1; return 0; fi
+    else
+      if [[ $av > $bv ]]; then print -r -- 1; return 0; fi
+      if [[ $av < $bv ]]; then print -r -- -1; return 0; fi
+    fi
+  done
+  print -r -- 0
+}
