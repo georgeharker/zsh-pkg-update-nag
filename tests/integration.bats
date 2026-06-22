@@ -44,7 +44,7 @@ teardown() { teardown_env ; }
 }
 
 @test "collect returns nothing when all managers report empty" {
-  ZPUN_FIXTURE_BREW=empty ZPUN_FIXTURE_NPM=empty ZPUN_FIXTURE_PNPM=empty ZPUN_FIXTURE_UV=empty \
+  ZPUN_FIXTURE_BREW=empty ZPUN_FIXTURE_NPM=empty ZPUN_FIXTURE_PNPM=empty ZPUN_FIXTURE_UV=empty ZPUN_FIXTURE_CARGO=empty \
     run run_plugin_zsh "_zpun_collect_outdated"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
@@ -58,6 +58,7 @@ teardown() { teardown_env ; }
   [[ "$output" == *$'npm\tpnpm\t9.0.0\t9.5.1'* ]]
   [[ "$output" == *$'uv\truff\t0.6.0\t0.6.4'* ]]
   [[ "$output" == *$'gem\trails\t7.1.0\t7.2.0'* ]]
+  [[ "$output" == *$'cargo\tripgrep\t13.0.0\t14.1.0'* ]]
 }
 
 @test "min-age threshold drops fresh updates from the aggregated output" {
@@ -126,9 +127,10 @@ teardown() { teardown_env ; }
 }
 
 @test "_zpun_run_upgrade builds correct command per manager" {
-  run run_plugin_zsh "_zpun_run_upgrade brew pnpm; _zpun_run_upgrade npm typescript; _zpun_run_upgrade gem rails"
+  run run_plugin_zsh "_zpun_run_upgrade brew pnpm; _zpun_run_upgrade npm typescript; _zpun_run_upgrade gem rails; _zpun_run_upgrade cargo ripgrep"
   [ "$status" -eq 0 ]
   [[ "$output" == *"brew upgrade pnpm"* ]]
   [[ "$output" == *"npm install -g typescript@latest"* ]]
   [[ "$output" == *"gem update rails"* ]]
+  [[ "$output" == *"cargo install-update ripgrep"* ]]
 }

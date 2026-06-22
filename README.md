@@ -24,7 +24,7 @@ A zsh plugin that surfaces outdated global packages at the start of a shell sess
 - **`n`** (or Esc): skip everything; no re-nag until the next interval.
 - **`s`**: step through per-package `Y/n` across all managers.
 
-Supports **Homebrew** (formulae and casks), **npm (global)**, **pnpm (global)**, **uv tools**, and **RubyGems**. Each manager is independently configurable as `all`, `off`, or an explicit allowlist.
+Supports **Homebrew** (formulae and casks), **npm (global)**, **pnpm (global)**, **uv tools**, **RubyGems**, and **cargo** (via [`cargo-update`](https://crates.io/crates/cargo-update)). Each manager is independently configurable as `all`, `off`, or an explicit allowlist.
 
 ### Why?
 
@@ -116,6 +116,7 @@ zsh_pkg_update_nag_npm=all
 zsh_pkg_update_nag_pnpm=all
 zsh_pkg_update_nag_uv=all
 zsh_pkg_update_nag_gem=off
+zsh_pkg_update_nag_cargo=all
 
 # Example: watch only two npm globals.
 # zsh_pkg_update_nag_npm=(typescript prettier)
@@ -179,7 +180,7 @@ If your package manager has minimum-release-age built in, use **that** for those
 | pnpm | [`minimumReleaseAge`](https://pnpm.io/settings#minimumreleaseage) in `.npmrc` | Prefer pnpm's; this plugin's setting is the fallback |
 | uv | [`--exclude-newer DATE`](https://docs.astral.sh/uv/reference/cli/#uv-pip-install--exclude-newer) (per-invocation) | This plugin's setting is easier for ongoing use |
 | gem | None | Use this plugin's setting |
-| _(out of scope)_ cargo | [`--minimum-release-age`](https://doc.rust-lang.org/cargo/commands/cargo-install.html) | Prefer cargo's |
+| cargo | [`--cooldown <duration>`](https://github.com/nabijaczleweli/cargo-update/blob/master/man/cargo-install-update.md) on `cargo install-update` (cargo-update ≥ 20.0.0) | This plugin forwards the configured threshold to `--cooldown` automatically. Nothing extra to set up. |
 
 ### Performance
 
@@ -192,6 +193,7 @@ Each outdated package needs one publish-date lookup the first time it's seen. Lo
 | pnpm | `https://registry.npmjs.org/<pkg>` via `curl` + `jq` | ~100–300 ms per package |
 | uv | `https://pypi.org/pypi/<pkg>/json` via `curl` + `jq` | ~100–300 ms per package |
 | gem | `https://rubygems.org/api/v1/versions/<pkg>.json` via `curl` + `jq` | ~100–300 ms per package |
+| cargo | `cargo install-update --list --cooldown <Nd>` (no per-package call from this plugin) | Whatever cargo-update spends refreshing the registry index (roughly one sparse-index fetch per installed cargo binary), bounded by the provider timeout |
 
 Real-world: cold cache, 35 outdated brew packages with `gh` authenticated → about 7 s total. Steady state with cache populated: ~3–4 s regardless of N. Background mode keeps that latency entirely off the startup path. Each provider call is wrapped by `ZSH_PKG_UPDATE_NAG_PROVIDER_TIMEOUT` (default 10 s) so a hung HTTP request can never extend the scan past that cap. If a single manager is too slow even in the background, set its per-manager override to `0` to disable the lookup for it.
 
@@ -271,6 +273,7 @@ rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/zsh-pkg-update-nag"
 - **Optional, only as needed:**
   - `jq`: improves Homebrew version-delta display (without it, brew versions show as `?`); also required for any `min_age > 0` lookup.
   - `curl`: required for `min_age > 0` on brew/uv/gem. Ships at `/usr/bin/curl` on macOS and most Linux distros.
+  - [`cargo-update`](https://crates.io/crates/cargo-update): required for the cargo provider. Install once with `cargo install cargo-update`; without it the provider is a silent no-op. Version 20.0.0+ adds native min-age filtering via `--cooldown`, which this plugin forwards automatically when `zsh_pkg_update_nag_min_age[_cargo]` is set.
   - [`gh`](https://cli.github.com/): enables the GraphQL fast path for brew min-age (one API call covering every package). Strongly recommended if you set `min_age > 0` for brew. Alternatively, set `$GITHUB_TOKEN` and the same path runs via `curl`.
   - `timeout` / `gtimeout`: wraps each provider call with a 10-second timeout. On macOS, `gtimeout` ships in `coreutils` (`brew install coreutils`).
 

@@ -1,0 +1,90 @@
+#!/bin/sh
+# Fixture: pretends to be `cargo`. Honors ZPUN_FIXTURE_CARGO:
+#
+#   default | unset — `--version` reports 20.0.0; `--list` emits two outdated
+#                     rows (ripgrep, cargo-edit) when no --cooldown is
+#                     passed, and only the up-to-date row when --cooldown
+#                     IS passed (simulating native min-age filtering).
+#   empty            — `--list` emits only up-to-date ("No") rows.
+#   missing          — `cargo install-update --version` exits non-zero,
+#                      simulating cargo-update not being installed.
+#   fail             — `cargo install-update --list` exits non-zero.
+#   old              — `--version` reports 19.0.0 (pre-cooldown); `--list`
+#                      ignores any --cooldown args and emits the full
+#                      outdated table.
+#
+# Also recognizes `cargo install-update <pkg>` as the per-package upgrade.
+
+mode="${ZPUN_FIXTURE_CARGO:-default}"
+
+# `cargo install-update --version` — existence + version for feature detect.
+if [ "$1 $2" = "install-update --version" ]; then
+  case "$mode" in
+    missing) exit 101 ;;  # cargo's "no such subcommand" exit code
+    old)     echo "cargo-install-update 19.0.0" ; exit 0 ;;
+    *)       echo "cargo-install-update 20.0.0" ; exit 0 ;;
+  esac
+fi
+
+# `cargo install-update --list [--cooldown N]` — outdated table.
+# Also `cargo install-update <pkg>` — per-package upgrade.
+if [ "$1" = "install-update" ]; then
+  shift
+  has_list=0
+  has_cooldown=0
+  pkg_arg=""
+  for arg in "$@"; do
+    case "$arg" in
+      --list|-l)  has_list=1 ;;
+      --cooldown) has_cooldown=1 ;;
+      -*)         : ;;
+      *)
+        [ -z "$pkg_arg" ] && pkg_arg="$arg"
+        ;;
+    esac
+  done
+
+  if [ "$has_list" -eq 1 ]; then
+    case "$mode" in
+      fail)
+        echo "cargo fixture: simulated failure" >&2
+        exit 1
+        ;;
+      empty)
+        cat <<'OUT'
+Package        Installed  Latest    Needs update
+cargo-update   v20.0.0    v20.0.0   No
+OUT
+        exit 0
+        ;;
+      *)
+        # `old` mode never receives --cooldown (the provider's version-gate
+        # suppresses it), so it always emits the full outdated set. For
+        # `default` mode, --cooldown presence means "native cooldown filter
+        # dropped every Yes row" so we emit only the up-to-date row.
+        if [ "$has_cooldown" -eq 1 ]; then
+          cat <<'OUT'
+Package        Installed  Latest    Needs update
+cargo-update   v20.0.0    v20.0.0   No
+OUT
+        else
+          cat <<'OUT'
+Package        Installed  Latest    Needs update
+ripgrep        v13.0.0    v14.1.0   Yes
+cargo-edit     v0.12.0    v0.13.0   Yes
+cargo-update   v20.0.0    v20.0.0   No
+OUT
+        fi
+        exit 0
+        ;;
+    esac
+  fi
+
+  # Per-package upgrade.
+  if [ -n "$pkg_arg" ]; then
+    echo "cargo fixture upgraded: $pkg_arg"
+    exit 0
+  fi
+fi
+
+exit 0
