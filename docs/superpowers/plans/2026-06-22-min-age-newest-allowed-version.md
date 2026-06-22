@@ -484,12 +484,14 @@ _zpun_min_age_resolve_target() {
 
   local now=$(date +%s)
   local threshold_seconds=$(( threshold * 86400 ))
-  local line ver epoch status best=""
+  # NOTE: `status` is a read-only special variable in zsh (aliases $?), so the
+  # per-version state field is held in `vstatus`.
+  local line ver epoch vstatus best=""
   for line in "${rows[@]}"; do
     ver=${line%%$'\t'*}
-    status=${line##*$'\t'}
+    vstatus=${line##*$'\t'}
     epoch=${${line#*$'\t'}%%$'\t'*}
-    [[ $status == stable ]] || continue
+    [[ $vstatus == stable ]] || continue
     [[ $epoch == <-> ]] || continue
     (( now - epoch >= threshold_seconds )) || continue
     [[ $(_zpun_version_compare "$ver" "$current") == 1 ]] || continue       # ver > current
@@ -579,12 +581,14 @@ Expected: FAIL — hook not defined.
 _zpun_min_age_emit_versions_from_iso_tsv() {
   emulate -L zsh
   setopt local_options
-  local ver iso status epoch
-  while IFS=$'\t' read -r ver iso status; do
+  # NOTE: `status` is a read-only special variable in zsh (aliases $?); the
+  # per-version state field is read into `vstatus`.
+  local ver iso vstatus epoch
+  while IFS=$'\t' read -r ver iso vstatus; do
     [[ -n $ver && -n $iso ]] || continue
     epoch=$(_zpun_min_age_parse_iso8601 "$iso") || continue
     [[ -n $epoch && $epoch == <-> ]] || continue
-    print -r -- "${ver}"$'\t'"${epoch}"$'\t'"${status}"
+    print -r -- "${ver}"$'\t'"${epoch}"$'\t'"${vstatus}"
   done
 }
 
