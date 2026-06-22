@@ -291,6 +291,54 @@ _zpun_min_age_versions_cache_evict() {
   done
 }
 
+# _zpun_min_age_resolve_target <manager> <name> <current> <latest>
+# Resolve-mode min-age: instead of hiding a too-new latest, find the newest
+# stable version that is old enough and in (current, latest].
+#   exit 0 + prints <target>  → rewrite the row's latest to <target>
+#   exit 1 (no output)        → hide the row (nothing newer qualifies)
+#   exit 2 (no output)        → fail-open (caller shows the true latest)
+_zpun_min_age_resolve_target() {
+  emulate -L zsh
+  setopt local_options
+
+  local manager=$1 name=$2 current=$3 latest=$4
+  local threshold
+  threshold=$(_zpun_min_age_threshold "$manager")
+  (( threshold > 0 )) || { print -r -- "$latest"; return 0; }
+
+  # Acquire the version list (cache-first; fetch via the manager hook on miss).
+  local -a rows
+  rows=( ${(f)"$(_zpun_min_age_versions_cache_get "$manager" "$name")"} )
+  if (( ${#rows} == 0 )); then
+    local hook="_zpun_min_age_versions_${manager}"
+    (( $+functions[$hook] )) || return 2
+    rows=( ${(f)"$( $hook "$name" 2>/dev/null )"} )
+    (( ${#rows} )) || return 2
+    _zpun_min_age_versions_cache_put "$manager" "$name" "${rows[@]}"
+  fi
+
+  local now=$(date +%s)
+  local threshold_seconds=$(( threshold * 86400 ))
+  local line ver epoch vstatus best=""
+  for line in "${rows[@]}"; do
+    ver=${line%%$'\t'*}
+    vstatus=${line##*$'\t'}
+    epoch=${${line#*$'\t'}%%$'\t'*}
+    [[ $vstatus == stable ]] || continue
+    [[ $epoch == <-> ]] || continue
+    (( now - epoch >= threshold_seconds )) || continue
+    [[ $(_zpun_version_compare "$ver" "$current") == 1 ]] || continue       # ver > current
+    [[ $(_zpun_version_compare "$ver" "$latest") != 1 ]] || continue        # ver <= latest
+    if [[ -z $best || $(_zpun_version_compare "$ver" "$best") == 1 ]]; then
+      best=$ver
+    fi
+  done
+
+  [[ -n $best ]] || return 1
+  print -r -- "$best"
+  return 0
+}
+
 # _zpun_version_compare <a> <b> — print -1 if a<b, 0 if a==b, 1 if a>b.
 # Pure zsh (macOS `sort` has no -V). Splits on '.', compares segments
 # numerically (zero-padding the shorter), and falls back to lexical compare
