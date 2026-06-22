@@ -134,3 +134,28 @@ teardown() { teardown_env ; }
   [[ "$output" == *"gem update rails"* ]]
   [[ "$output" == *"cargo install-update ripgrep"* ]]
 }
+
+@test "collect resolve-mode rewrites npm row to held-back target" {
+  # npm --json fixture: typescript 5.5.0 is "now" (too new), 5.4.5 is 2020
+  # (old enough), current is 5.4.0. With a large npm threshold the row should
+  # be rewritten to the held-back 5.4.5 rather than hidden.
+  run run_plugin_zsh "
+    zsh_pkg_update_nag_min_age_npm=999
+    _zpun_collect_outdated
+  "
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'npm\ttypescript\t5.4.0\t5.4.5'* ]]
+  # pnpm 9.5.1 is the only version above current 9.0.0 and it's too new → hidden.
+  local re=$'(^|\n)npm\tpnpm\t'
+  [[ ! "$output" =~ $re ]]
+}
+
+@test "collect gate-mode (brew) is unaffected by npm resolve threshold" {
+  run run_plugin_zsh "
+    zsh_pkg_update_nag_min_age_npm=999
+    _zpun_collect_outdated
+  "
+  [ "$status" -eq 0 ]
+  # brew has no min_age set → its rows pass through unchanged (gate mode).
+  [[ "$output" == *$'brew\tgh\t2.60.0\t2.62.0'* ]]
+}

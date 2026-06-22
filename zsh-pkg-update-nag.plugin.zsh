@@ -126,11 +126,27 @@ _zpun_collect_outdated() {
         fi
       fi
 
+      local pkg_current pkg_rest target rc
       for line in "${outdated_rows[@]}"; do
         pkg_name=${line%%$'\t'*}
         pkg_latest=${line##*$'\t'}
+        pkg_rest=${line#*$'\t'}
+        pkg_current=${pkg_rest%%$'\t'*}
         if (( _have_min_age )); then
-          _zpun_min_age_satisfied "$manager" "$pkg_name" "$pkg_latest" || continue
+          if (( $+functions[_zpun_min_age_versions_${manager}] )); then
+            # Resolve mode: rewrite latest to the newest old-enough version,
+            # hide when nothing qualifies, fail-open on lookup failure.
+            target=$(_zpun_min_age_resolve_target "$manager" "$pkg_name" "$pkg_current" "$pkg_latest")
+            rc=$?
+            case $rc in
+              0) line="${pkg_name}"$'\t'"${pkg_current}"$'\t'"${target}" ;;
+              1) continue ;;
+              *) : ;;   # fail-open: leave the row as the provider reported it
+            esac
+          else
+            # Gate mode (brew): hide when the latest is positively too new.
+            _zpun_min_age_satisfied "$manager" "$pkg_name" "$pkg_latest" || continue
+          fi
         fi
         print -r -- "${manager}"$'\t'"${line}"
       done
