@@ -183,3 +183,17 @@ teardown() { teardown_env ; }
   [ "$status" -ne 0 ]
   [ -z "$output" ]
 }
+
+@test "uv versions hook classifies stable/prerelease/yanked from pypi" {
+  run run_plugin_zsh "_zpun_min_age_versions_uv ruff"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'0.6.4\t'*$'\tstable'* ]]
+  [[ "$output" == *$'0.7.0a1\t'*$'\tprerelease'* ]]
+  [[ "$output" == *$'0.5.0\t'*$'\tyanked'* ]]
+}
+
+@test "uv versions hook returns non-zero on curl failure" {
+  ZPUN_FIXTURE_CURL=fail run run_plugin_zsh "_zpun_min_age_versions_uv ruff"
+  [ "$status" -ne 0 ]
+  [ -z "$output" ]
+}

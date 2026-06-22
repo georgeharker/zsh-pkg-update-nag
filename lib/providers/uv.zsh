@@ -51,3 +51,31 @@ _zpun_min_age_lookup_uv() {
   [[ -n $iso ]] || return 1
   _zpun_min_age_parse_iso8601 "$iso"
 }
+
+# _zpun_min_age_versions_uv <name> — full version history from PyPI's JSON API.
+# Status: yanked from the release's `yanked` flag; prerelease via a PEP 440
+# marker heuristic (a/b/rc/alpha/beta/dev/pre suffix); else stable.
+# Resolve-mode (see lib/min_age.zsh).
+_zpun_min_age_versions_uv() {
+  emulate -L zsh
+  setopt local_options
+
+  local name=$1
+  (( $+commands[curl] && $+commands[jq] )) || return 1
+  local json
+  json=$(curl -fsSL --max-time 5 "https://pypi.org/pypi/${name}/json" 2>/dev/null) || return 1
+  [[ -n $json ]] || return 1
+
+  print -r -- "$json" | jq -r '
+    .releases // {}
+    | to_entries[]
+    | select((.value | length) > 0)
+    | .key as $k
+    | (.value[0].upload_time // .value[0].upload_time_iso_8601 // empty) as $t
+    | select($t != null)
+    | [$k, $t,
+       (if (.value[0].yanked == true) then "yanked"
+        elif ($k | test("(?i)(a|b|rc|alpha|beta|dev|pre)[0-9]*$")) then "prerelease"
+        else "stable" end)] | @tsv
+  ' 2>/dev/null | _zpun_min_age_emit_versions_from_iso_tsv
+}

@@ -53,11 +53,11 @@ case "$url" in
     if [ "$mode" = "missing" ]; then
       printf '{"releases":{"0.0.0":[{"upload_time":"%s"}]}}\n' "$ts"
     else
-      # Cover every version that appears in the test fixtures + a permissive
-      # wildcard via jq (the lookup queries by exact key, so we just enumerate).
       printf '{"releases":{'
-      printf '"0.6.4":[{"upload_time":"%s"}],' "$ts"
-      printf '"0.6.0":[{"upload_time":"%s"}],' "$ts"
+      printf '"0.6.0":[{"upload_time":"%s","yanked":false}],' "$ts"
+      printf '"0.6.4":[{"upload_time":"%s","yanked":false}],' "$ts"
+      printf '"0.7.0a1":[{"upload_time":"%s","yanked":false}],' "$ts"
+      printf '"0.5.0":[{"upload_time":"%s","yanked":true}],' "$ts"
       printf '"1.0.0":[{"upload_time":"%s"}]'  "$ts"
       printf '}}\n'
     fi
