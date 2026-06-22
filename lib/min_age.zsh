@@ -197,6 +197,100 @@ _zpun_min_age_cache_count() {
   print -r -- "${count:-0}"
 }
 
+# version_lists cache: per-package (version, epoch, status) lists with a TTL.
+# Distinct from age_cache.tsv (immutable single-version epochs, used by the
+# brew gate). Resolve-mode managers (npm/pnpm/uv/gem) use this.
+
+_zpun_version_lists_dir() {
+  emulate -L zsh
+  setopt local_options
+  print -r -- "$(_zpun_state_dir)/version_lists"
+}
+
+# Deterministic, collision-free, filesystem-safe encoding of a package name.
+# Percent-encodes anything outside [A-Za-z0-9._-] (npm scoped names carry / and @).
+_zpun_min_age_versions_safe_name() {
+  emulate -L zsh
+  setopt local_options
+  local s=$1 out="" ch i
+  for (( i=1; i <= ${#s}; i+=1 )); do
+    ch=$s[i]
+    if [[ $ch == [A-Za-z0-9._-] ]]; then
+      out+=$ch
+    else
+      out+=$(printf '%%%02X' "'$ch")
+    fi
+  done
+  print -r -- "$out"
+}
+
+_zpun_min_age_versions_cache_path() {
+  emulate -L zsh
+  setopt local_options
+  local manager=$1 name=$2
+  local safe=$(_zpun_min_age_versions_safe_name "$name")
+  print -r -- "$(_zpun_version_lists_dir)/${manager}__${safe}.tsv"
+}
+
+# Print cached rows (excluding the header) and return 0 if fresh; else return 1.
+_zpun_min_age_versions_cache_get() {
+  emulate -L zsh
+  setopt local_options
+  local manager=$1 name=$2
+  local cache=$(_zpun_min_age_versions_cache_path "$manager" "$name")
+  [[ -f $cache ]] || return 1
+
+  local -a lines
+  lines=( ${(f)"$(<$cache)"} )
+  (( ${#lines} >= 1 )) || return 1
+  [[ ${lines[1]} == '# fetched_at '* ]] || return 1
+  local fetched_at=${lines[1]##* }
+  [[ $fetched_at == <-> ]] || return 1
+
+  local ttl=${ZSH_PKG_UPDATE_NAG_MIN_AGE_LIST_TTL:-86400}
+  local now=$(date +%s)
+  (( now - fetched_at < ttl )) || return 1
+
+  (( ${#lines} >= 2 )) || return 0
+  print -rl -- "${lines[2,-1]}"
+  return 0
+}
+
+# Write header + rows. No-op when no rows (we never cache empty/failed lists).
+_zpun_min_age_versions_cache_put() {
+  emulate -L zsh
+  setopt local_options
+  local manager=$1 name=$2
+  shift 2
+  (( $# )) || return 0
+  local cache=$(_zpun_min_age_versions_cache_path "$manager" "$name")
+  local dir=${cache:h}
+  [[ -d $dir ]] || mkdir -p "$dir" 2>/dev/null
+  local now=$(date +%s)
+  {
+    print -r -- "# fetched_at ${now}"
+    local row
+    for row in "$@"; do print -r -- "$row"; done
+  } > "$cache" 2>/dev/null
+  _zpun_min_age_versions_cache_evict
+}
+
+# Keep at most 500 cached package files; drop the oldest by mtime.
+_zpun_min_age_versions_cache_evict() {
+  emulate -L zsh
+  setopt local_options
+  local dir=$(_zpun_version_lists_dir)
+  [[ -d $dir ]] || return 0
+  local -a files
+  files=( "$dir"/*.tsv(Nom) )   # N: nullglob, om: sort by mtime, newest first
+  local cap=500
+  (( ${#files} > cap )) || return 0
+  local f
+  for f in "${files[$((cap+1)),-1]}"; do
+    rm -f "$f" 2>/dev/null
+  done
+}
+
 # _zpun_version_compare <a> <b> — print -1 if a<b, 0 if a==b, 1 if a>b.
 # Pure zsh (macOS `sort` has no -V). Splits on '.', compares segments
 # numerically (zero-padding the shorter), and falls back to lexical compare
