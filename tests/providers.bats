@@ -73,6 +73,14 @@ teardown() { teardown_env ; }
   [ -z "$output" ]
 }
 
+@test "cargo provider stays silent when 'install-update --list' fails" {
+  # A non-zero `--list` (registry unreachable, malformed cooldown, etc.)
+  # must fail-open to an empty result, not surface a partial/garbage row.
+  ZPUN_FIXTURE_CARGO=fail run run_plugin_zsh "_zpun_provider_cargo"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
 @test "cargo provider forwards --cooldown when min_age threshold is set" {
   # Fixture's default mode emits no Yes rows when --cooldown is passed,
   # simulating native cargo-update cooldown filtering. A configured

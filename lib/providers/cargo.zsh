@@ -7,7 +7,7 @@
 # and which ones have newer versions on crates.io.
 #
 # Min-age is handled natively by cargo-update via `--cooldown <duration>`
-# (cargo-update ≥ 15) — we forward our configured threshold to that flag and
+# (cargo-update ≥ 20.0.0) — we forward our configured threshold to that flag and
 # let the upstream tool do the filtering. No per-package crates.io call from
 # us. When cargo-update is too old to know `--cooldown`, we log and proceed
 # without filtering so the rest of the scan still surfaces updates.
@@ -47,6 +47,16 @@ _zpun_provider_cargo() {
   # or `cargo install-update -a` in another shell would freeze our scan
   # until it finishes. Probe the lock non-blockingly via zsh/system's flock;
   # if it's held, skip the provider this run.
+  #
+  # The probe is deliberately best-effort, not race-free: it acquires and
+  # immediately releases the lock (subshell scope), so a process can still
+  # grab the lock in the window between the probe and the `--list` call
+  # below, leaving `--list` to block. We can't close that window by holding
+  # the lock across `--list` — cargo's own `--list` would then deadlock
+  # waiting on us. The real guarantee is the per-provider `timeout` wrapper
+  # in _zpun_collect_outdated, which kills a blocked `--list`; the probe just
+  # turns the common contended case into an instant, clean skip instead of a
+  # full-timeout stall on the background scan.
   local lock_file="${CARGO_HOME:-$HOME/.cargo}/.package-cache"
   if [[ -f $lock_file ]] && zmodload zsh/system 2>/dev/null; then
     if ! ( zsystem flock -t 0 "$lock_file" ) 2>/dev/null; then
