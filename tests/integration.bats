@@ -61,6 +61,22 @@ teardown() { teardown_env ; }
   [[ "$output" == *$'cargo\tripgrep\t13.0.0\t14.1.0'* ]]
 }
 
+@test "collect emits only well-formed manager rows (regression for #4)" {
+  # Regression for #4: `local pkg_current pkg_rest target rc` was re-declared
+  # inside the per-manager loop. Once a second manager had updates, re-running
+  # `local` on already-set names printed their leftover values
+  # (pkg_current=…, rc=…) onto the collector's captured stdout. Those bogus
+  # lines carry no tabs, so the renderer's ${(s:\t:)line}[N] char-indexed them
+  # into single-character garbage ("p", "k", …) and the upgrade path reported
+  # "unknown manager: p". Assert every emitted row is a real manager-prefixed
+  # TSV line so any such stdout leak fails the suite.
+  run run_plugin_zsh "export zsh_pkg_update_nag_gem=all; _zpun_collect_outdated"
+  [ "$status" -eq 0 ]
+  [ -n "$output" ]
+  bogus="$(printf '%s\n' "$output" | grep -vE $'^(brew|npm|pnpm|uv|gem|cargo)\t' | grep -v '^$' || true)"
+  [ -z "$bogus" ] || { echo "non-row output leaked into collector:"; echo "$bogus"; false; }
+}
+
 @test "min-age threshold drops fresh updates from the aggregated output" {
   # ZPUN_FIXTURE_NPM_AGE=fresh + ZPUN_FIXTURE_CURL=fresh make every age-lookup
   # return "now"; with global threshold = ~3 years (in days), every row should
