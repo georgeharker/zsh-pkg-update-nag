@@ -70,6 +70,11 @@ _zpun_collect_outdated() {
   setopt local_options
 
   local manager provider_fn result line pkg_name pkg_latest threshold
+  # Declared here, not inside the per-manager loop below: re-running `local`
+  # on an already-set name inside a loop prints "name=value" to stdout (the
+  # zsh pitfall noted in CLAUDE.md), which would land in the collector's
+  # captured output as bogus package rows.
+  local pkg_current pkg_rest target rc
   local -a timeout_cmd outdated_rows prefetch_args
   timeout_cmd=( ${(z)"$(_zpun_timeout_prefix)"} )
 
@@ -126,7 +131,6 @@ _zpun_collect_outdated() {
         fi
       fi
 
-      local pkg_current pkg_rest target rc
       for line in "${outdated_rows[@]}"; do
         pkg_name=${line%%$'\t'*}
         pkg_latest=${line##*$'\t'}
