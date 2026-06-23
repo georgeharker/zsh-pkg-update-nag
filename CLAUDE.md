@@ -57,6 +57,16 @@ every `tmux` split, every `exec zsh`. There is no budget for "it's only N ms".
   the previous value to stdout** under certain option combinations.
   Declare loop-locals once before the loop, or use `local foo=` (with the
   empty assignment) to suppress the print.
+- **`${(s:SEP:)str}[N]` indexes by character, not field, when `str`
+  contains no `SEP`.** With the separator present the expansion splits
+  into fields and `[N]` is the Nth field; with it absent the result is a
+  lone scalar and `[N]` is the Nth character. A malformed (tab-less) row
+  reaching the `lib/ui.zsh` summary/upgrade parsers therefore renders as
+  single-character garbage instead of failing loudly. This is what
+  amplified the #4 stdout leak into the `unknown manager: p` output:
+  leaked `pkg_current=…` lines have no tab, so `${(s:\t:)line}[1..4]`
+  char-indexed them into `p`/`k`/`g`/`_`. Validate row shape (e.g. field
+  count) before trusting indexed split fields.
 - **No output during powerlevel10k instant-prompt.** Printing during the
   instant-prompt phase corrupts p10k's pre-prompt buffer (the "Console
   output during zsh initialization detected" warning). Gate prompt-time
