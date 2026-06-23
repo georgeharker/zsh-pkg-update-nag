@@ -141,9 +141,19 @@ teardown() { teardown_env ; }
   [[ "$output" == *"pnpm add -g rollup@4.30.5"* ]]
   [[ "$output" == *"uv tool install --force ruff==0.6.3"* ]]
   [[ "$output" == *"gem install rails -v 7.1.5"* ]]
-  # cargo ignores the version arg: cargo-update has no pinned-install path here,
-  # so it upgrades to latest regardless (documented gap).
+  # cargo upgrades via cargo-update; with no min-age set it tracks latest and
+  # adds no --cooldown. The version arg is ignored (cooldown is cargo's pin).
   [[ "$output" == *"cargo install-update ripgrep"* ]]
+  [[ "$output" != *"--cooldown"* ]]
+}
+
+@test "_zpun_run_upgrade cargo forwards --cooldown when min-age is set" {
+  # Closes the upgrade-time gap: a configured cargo min-age must reach the
+  # actual upgrade, so accepting it cannot install a version newer than the
+  # cooldown the scan applied.
+  run run_plugin_zsh "zsh_pkg_update_nag_min_age_cargo=7; _zpun_run_upgrade cargo ripgrep 14.1.0"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"cargo install-update ripgrep --cooldown 7d"* ]]
 }
 
 @test "_zpun_run_upgrade without a version falls back to latest-tracking" {

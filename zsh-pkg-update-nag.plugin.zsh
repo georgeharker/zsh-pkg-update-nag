@@ -175,9 +175,12 @@ _zpun_timeout_prefix() {
 
 # _zpun_run_upgrade — execute a single upgrade command array-style.
 # Arguments: <manager> <package> [<version>]
-# When version is provided, pins to that exact version (npm/pnpm/uv/gem).
-# When omitted, falls back to latest-tracking commands.
+# When version is provided, npm/pnpm/uv/gem pin to that exact version.
+# When omitted, those fall back to latest-tracking commands.
 # brew always uses `brew upgrade <pkg>` (version arg is ignored).
+# cargo upgrades via cargo-update and forwards the configured min-age to its
+# native `--cooldown` (the version arg is ignored) so the upgrade installs the
+# same cooldown-resolved version the scan showed, not the true latest.
 _zpun_run_upgrade() {
   emulate -L zsh
   setopt local_options
@@ -192,7 +195,23 @@ _zpun_run_upgrade() {
           else cmd=(uv tool upgrade "$pkg"); fi ;;
     gem)  if [[ -n $version ]]; then cmd=(gem install "$pkg" -v "$version")
           else cmd=(gem update "$pkg"); fi ;;
-    cargo) cmd=(cargo install-update "$pkg") ;;
+    cargo)
+      # Resolve the cargo min-age threshold inline (per-manager override wins
+      # over the global, even at 0), mirroring lib/providers/cargo.zsh. When
+      # set, forward it to cargo-update's --cooldown so accepting the upgrade
+      # cannot install a version newer than the cooldown the scan applied.
+      local cargo_threshold
+      if (( ${+zsh_pkg_update_nag_min_age_cargo} )); then
+        cargo_threshold=${zsh_pkg_update_nag_min_age_cargo:-0}
+      else
+        cargo_threshold=${zsh_pkg_update_nag_min_age:-0}
+      fi
+      if (( cargo_threshold > 0 )); then
+        cmd=(cargo install-update "$pkg" --cooldown "${cargo_threshold}d")
+      else
+        cmd=(cargo install-update "$pkg")
+      fi
+      ;;
     *)    _zpun_ui_error "unknown manager: $manager"; return 2 ;;
   esac
 
