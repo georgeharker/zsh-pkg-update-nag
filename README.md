@@ -199,12 +199,12 @@ When npm/pnpm/uv/gem lack a native minimum-age setting (or you can't change thei
 
 ### Performance
 
-Each outdated package needs one publish-date lookup the first time it's seen. Lookups are cached forever in `$XDG_STATE_HOME/zsh-pkg-update-nag/age_cache.tsv` (publish dates don't change), so steady-state cost is near-zero. Most users see ~95% cache hits after a day or two.
+Each outdated package needs one lookup the first time it's seen, and the result is cached so steady-state cost is near-zero. Gate-mode lookups (brew) cache immutable publish dates forever in `$XDG_STATE_HOME/zsh-pkg-update-nag/age_cache.tsv`; resolve-mode managers (npm/pnpm/uv/gem) cache each package's version list under `version_lists/` with a TTL (see below). Most users see high cache-hit rates after a day or two.
 
 | Manager | Lookup source | Cold-cache cost |
 |---|---|---|
 | brew | `brew info --json=v2` (~1.2 s fixed) plus a single GitHub GraphQL query covering every package via `gh api graphql` or `curl` with `$GITHUB_TOKEN`. Falls back to per-package serial REST when neither is available. | ~3 s for any number of packages on the fast path; ~N seconds on the unauth REST fallback |
-| npm | `npm view <pkg> time --json` + `jq` | ~350–650 ms (network) per package |
+| npm | `npm view <pkg> --json` + `jq` (config-aware via the npm CLI) | ~350–650 ms (network) per package |
 | pnpm | `https://registry.npmjs.org/<pkg>` via `curl` + `jq` | ~100–300 ms per package |
 | uv | `https://pypi.org/pypi/<pkg>/json` via `curl` + `jq` | ~100–300 ms per package |
 | gem | `https://rubygems.org/api/v1/versions/<pkg>.json` via `curl` + `jq` | ~100–300 ms per package |
