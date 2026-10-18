@@ -331,7 +331,7 @@ _zpun_ui_render_summary() {
     cur=${${(s:	:)line}[3]}
     lat=${${(s:	:)line}[4]}
 
-    if [[ $manager != $prev_manager ]]; then
+    if [[ $manager != "$prev_manager" ]]; then
       label=${_ZPUN_MANAGER_LABELS[$manager]:-$manager}
       _zpun_ui_say header "  $label"
       prev_manager=$manager
@@ -477,6 +477,8 @@ _zpun_ui_prompt_and_upgrade() {
 
   case $choice in
     y) _zpun_ui_upgrade_all "${lines[@]}" ;;
+    # Config global, set by _zpun_config_load.
+    # shuck: disable=C006
     n) _zpun_ui_info "Skipped. Next check in ${zsh_pkg_update_nag_interval_hours}h." ;;
     s) _zpun_ui_upgrade_individually "${lines[@]}" ;;
   esac
@@ -496,6 +498,8 @@ _zpun_ui_reminder() {
 
   # Indent to line up with the two-space summary block above, so the
   # instruction reads as part of the notice rather than a detached trailer.
+  # Config global, set by _zpun_config_load.
+  # shuck: disable=C006
   local cmd=${zsh_pkg_update_nag_reminder_command}
   _zpun_ui_say prompt "  Run  ${cmd}  to upgrade."
 }

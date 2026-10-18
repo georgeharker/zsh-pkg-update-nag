@@ -53,6 +53,8 @@ _zpun_min_age_active() {
   local m override_var t
   for m in brew npm pnpm uv gem cargo; do
     override_var="zsh_pkg_update_nag_min_age_${m}"
+    # ${(P)+name}: "is the variable NAMED by override_var set" (indirect).
+    # shuck: disable=C006
     if (( ${(P)+override_var} )); then
       t=${(P)override_var:-0}
     else
