@@ -257,21 +257,23 @@ _zpun_main() {
   # iteration and bail out instead of charging ahead with the next package.
   typeset -g _ZPUN_INTERRUPTED=0
   # Safety net: if the user Ctrl-C's mid-scan or the shell exits during the
-  # check, restore the tty (replays any buffered keystrokes onto the next
-  # prompt), clear the status line, release the lock, and refresh the stamp
-  # so we don't re-nag.
+  # check, end the capture (replays any buffered keystrokes and schedules the
+  # tty restore for the next prompt), clear the status line, release the
+  # lock, and refresh the stamp so we don't re-nag.
   trap '_ZPUN_INTERRUPTED=1; _zpun_input_capture_end; _zpun_ui_status_clear; _zpun_rate_limit_release_lock; _zpun_rate_limit_stamp; trap - INT TERM EXIT' INT TERM EXIT
 
+  # Capture spans the scan, so keys typed mid-scan neither echo over the
+  # spinner nor get taken as the y/n/s answer. The long hold is safe: the
+  # tty is only restored at the next prompt, and only verbatim if nothing
+  # else changed it meanwhile (_zpun_tty_restore_precmd / _zpun_tty_undo).
   _zpun_input_capture_begin
 
   local -a outdated
   outdated=( ${(f)"$(_zpun_collect_outdated)"} )
 
   if (( ${#outdated} )); then
-    # Capture stays active through the render (and, in prompt mode, the y/n/s
-    # read) so keystrokes typed after the scan don't echo mid-output or leak
-    # into the read. _zpun_ui_present owns the teardown: it ends the capture
-    # after its mode handler returns, replaying type-ahead onto the next prompt.
+    # _zpun_ui_present owns the teardown: it ends the capture after its mode
+    # handler returns, replaying type-ahead onto the next prompt.
     _zpun_ui_present "${outdated[@]}"
   else
     _zpun_input_capture_end

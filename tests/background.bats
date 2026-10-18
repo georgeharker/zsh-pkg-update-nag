@@ -378,7 +378,8 @@ _WAIT_STAMP='
 
 @test "_zpun_ui_read_choice: EOF (closed stdin) declines instead of defaulting" {
   run run_plugin_zsh "
-    print -r -- \"[\$(_zpun_ui_read_choice 'P?' 'yns' 'y' < /dev/null 2>/dev/null)]\"
+    _zpun_ui_read_choice 'P?' 'yns' 'y' < /dev/null
+    print -r -- \"[\$REPLY]\"
   "
   [ "$status" -eq 0 ]
   [[ "$output" == *"[n]"* ]]
