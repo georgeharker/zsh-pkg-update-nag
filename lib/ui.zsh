@@ -291,8 +291,15 @@ _zpun_ui_read_choice() {
 
   # read -k 1 reads a single keypress; -u 0 forces stdin (important for subshells).
   if ! read -k 1 -u 0 key; then
+    # EOF (Ctrl-D, closed stdin) must DECLINE, not accept: only an explicit
+    # valid key — or the [Y/n] Enter default — accepts. Mirrors the
+    # update-impl pattern `read ... || _ans=n`.
     print >&2
-    print -r -- "$default"
+    if [[ $valid == *n* ]]; then
+      print -r -- n
+    else
+      print -r -- "$default"
+    fi
     return
   fi
   print >&2
@@ -372,6 +379,20 @@ _zpun_ui_reminder() {
   # instruction reads as part of the notice rather than a detached trailer.
   local cmd=${zsh_pkg_update_nag_reminder_command}
   _zpun_ui_say prompt "  Run  ${cmd}  to upgrade."
+}
+
+# _zpun_ui_notice <lines…> — non-blocking mid-session presentation: render
+# the tier-1 summary and point at the on-demand upgrade command. NEVER reads
+# the terminal. Used by the deferred precmd when results arrive after the
+# session's first prompt — i.e. potentially the instant the user returned
+# from a foreground application, which is exactly when a blocking single-key
+# read would steal their leading ESC bytes and mangle their typing.
+_zpun_ui_notice() {
+  emulate -L zsh
+  setopt local_options
+
+  _zpun_ui_render_summary "$@"
+  _zpun_ui_say prompt "  Run  ${zsh_pkg_update_nag_reminder_command:-zsh-pkg-update-nag --now}  to upgrade."
 }
 
 # _zpun_ui_mode — single source of truth for the recognized presentation modes.

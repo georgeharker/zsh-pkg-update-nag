@@ -311,41 +311,90 @@ _zpun_p10k_instant_prompt_active() {
 #
 # _ZPUN_PRECMD_ANNOUNCED is set by _zpun_main_deferred when this hook is
 # registered, and we capture-and-clear it here as a "first call" sentinel.
-# It drives both the one-shot "(checking…)" notice and the p10k deferral
-# below — both only matter on the very first invocation.
+# It drives the one-shot "(checking…)" notice, leftover delivery, and the
+# p10k deferral below, all of which matter only on the first invocation.
+#
+# session_start is narrower: "the user has not run a command yet", the one
+# moment a blocking prompt is acceptable. Any later arrival may come the
+# instant the user returns from a foreground app, when a single-key read
+# would steal the leading ESC byte of their key sequences, so it gets a
+# non-blocking notice instead.
 _zpun_precmd_nag() {
   emulate -L zsh
   setopt local_options
 
   local pending=$(_zpun_pending_path)
 
-  local first_call=0
-  if (( ${+_ZPUN_PRECMD_ANNOUNCED} )); then
-    first_call=1
-    unset _ZPUN_PRECMD_ANNOUNCED
+  # Defer one precmd under p10k instant-prompt: the first precmd may run
+  # BEFORE p10k finalizes its pre-prompt buffer (depends on hook registration
+  # order; our hook can be registered before p10k's, since users commonly
+  # source ~/.p10k.zsh after loading plugins). By the second call p10k has
+  # finalized regardless of order. The first-call sentinel survives the
+  # deferral so leftovers and our own results are still delivered on the
+  # second call. That call follows the user's first command line, though,
+  # so it only counts as session start if that line added no history event
+  # (a bare Enter); _ZPUN_P10K_DEFERRED records $HISTCMD to tell.
+  if (( ${+_ZPUN_PRECMD_ANNOUNCED} && ! ${+_ZPUN_P10K_DEFERRED} )) \
+      && _zpun_p10k_instant_prompt_active; then
+    typeset -g _ZPUN_P10K_DEFERRED=$HISTCMD
+    return 0
   fi
 
+  local first_call=0 session_start=0
+  if (( ${+_ZPUN_PRECMD_ANNOUNCED} )); then
+    first_call=1
+    if (( ! ${+_ZPUN_P10K_DEFERRED} )) || [[ $_ZPUN_P10K_DEFERRED == "$HISTCMD" ]]; then
+      session_start=1
+    fi
+    unset _ZPUN_PRECMD_ANNOUNCED _ZPUN_P10K_DEFERRED
+  fi
+
+  # Leftover pending files from shells that died before consuming their
+  # scan: deliver as a non-blocking notice on the first call. Superseded
+  # (dropped quietly) when this shell's own results already landed before
+  # the prompt — a fresh present beats a dead shell's rows; hour-old
+  # leftovers were already deleted by _zpun_pending_leftovers.
+  if (( first_call )) && (( ${+_ZPUN_LEFTOVER_PENDING} )); then
+    local leftover lcontent lfirst
+    local -a lrows
+    for leftover in "${_ZPUN_LEFTOVER_PENDING[@]}"; do
+      lcontent=$(<"$leftover") 2>/dev/null
+      rm -f "$leftover" 2>/dev/null
+      lfirst=${lcontent%%$'\n'*}
+      if [[ $lfirst == ok || -z $lcontent ]]; then
+        continue
+      fi
+      if [[ $lfirst == err ]]; then
+        _zpun_debug_log "leftover scan from a dead shell failed"
+        continue
+      fi
+      lrows=( ${(f)lcontent} )
+      lrows=( ${lrows:#} )
+      [[ -e $pending ]] && continue
+      (( ${#lrows} )) && _zpun_ui_notice "${lrows[@]}"
+    done
+  fi
+  unset _ZPUN_LEFTOVER_PENDING
+
   if [[ ! -e $pending ]]; then
+    if (( ! ${+_ZPUN_SCAN_IN_FLIGHT} )); then
+      # Registered only to deliver leftovers; nothing more will arrive, so
+      # stop paying for this hook on every prompt.
+      precmd_functions=( ${precmd_functions:#_zpun_precmd_nag} )
+      return 0
+    fi
     # Scan still running. Print a one-shot notice on the first prompt so the
     # user knows something is happening, then wait silently. Suppress under
-    # p10k instant-prompt — printing during the instant-prompt phase corrupts
-    # the prompt buffer. Cosmetic loss only.
+    # p10k instant-prompt — by the time we get here the user has already
+    # seen a prompt, so the notice would be stale. Cosmetic loss only.
     if (( first_call )) && ! _zpun_p10k_instant_prompt_active; then
       _zpun_ui_info "(checking for package updates in the background…)"
     fi
     return 0
   fi
 
-  # Pending file exists. Under p10k instant-prompt, the first precmd may run
-  # BEFORE p10k finalizes its pre-prompt buffer (depends on hook registration
-  # order — our hook can be registered before p10k's, since users commonly
-  # source ~/.p10k.zsh after loading plugins). Defer one precmd: by the
-  # second call p10k has finalized regardless of order.
-  if (( first_call )) && _zpun_p10k_instant_prompt_active; then
-    return 0
-  fi
-
   precmd_functions=( ${precmd_functions:#_zpun_precmd_nag} )
+  unset _ZPUN_SCAN_IN_FLIGHT
 
   local content
   content=$(<"$pending")
@@ -362,7 +411,16 @@ _zpun_precmd_nag() {
       local -a outdated
       outdated=( ${(f)content} )
       outdated=( ${outdated:#} )
-      (( ${#outdated} )) && _zpun_ui_present "${outdated[@]}"
+      (( ${#outdated} )) || return 0
+      if (( session_start )); then
+        # Results were waiting before the user ran anything: the one moment
+        # a blocking prompt is by design.
+        _zpun_ui_present "${outdated[@]}"
+      else
+        # Mid-session arrival: never block. Render the summary and point at
+        # --now; stdin untouched.
+        _zpun_ui_notice "${outdated[@]}"
+      fi
       ;;
   esac
 }
@@ -378,22 +436,31 @@ _zpun_main_deferred() {
 
   _zpun_should_run || return 0
   _zpun_config_load
-
-  # If a previous shell's background scan left results waiting, register the
-  # hook to display them even if the rate limit isn't due for a new scan.
-  # _ZPUN_PRECMD_ANNOUNCED is the "first call" sentinel for _zpun_precmd_nag;
-  # set it here too so the p10k deferral path applies on the orphaned
-  # branch (the "(checking…)" notice naturally won't fire because pending
-  # already exists).
+  # Pending is per-shell (pending.$$): scan results belong to the shell that
+  # spawned them, so no other window's precmd can consume them there — the
+  # old shared "pending_updates" file is what let a presentation (and its
+  # blocking prompt) pop in a window the user wasn't watching. Files of other
+  # LIVE shells are theirs to consume; files of dead shells are leftovers,
+  # adopted for a non-blocking first-prompt notice (or deleted if hour-old).
+  #
+  # This shell has only just started, so a pending.$$ already on disk was
+  # written by a dead shell whose PID we reused (or by the shell this one
+  # `exec`ed over). Left alone, the first precmd would present it as our
+  # own fresh scan, and our real result would never be consumed.
   local pending=$(_zpun_pending_path)
-  if [[ -e $pending ]]; then
-    typeset -g _ZPUN_PRECMD_ANNOUNCED=1
-    precmd_functions+=(_zpun_precmd_nag)
+  [[ -e $pending ]] && rm -f "$pending" 2>/dev/null
+  local -a reply
+  _zpun_pending_leftovers "$pending"
+  typeset -ga _ZPUN_LEFTOVER_PENDING
+  _ZPUN_LEFTOVER_PENDING=( "${reply[@]}" )
+
+  if ! _zpun_rate_limit_is_due || ! _zpun_rate_limit_acquire_lock; then
+    if (( ${#_ZPUN_LEFTOVER_PENDING} )); then
+      typeset -g _ZPUN_PRECMD_ANNOUNCED=1
+      precmd_functions=( ${precmd_functions:#_zpun_precmd_nag} _zpun_precmd_nag )
+    fi
     return 0
   fi
-
-  _zpun_rate_limit_is_due || return 0
-  _zpun_rate_limit_acquire_lock || return 0
 
   # Stderr is redirected to the debug log; _zpun_ui_status already guards on
   # [[ -t 2 ]], so progress messages go silent without any code changes there.
@@ -409,7 +476,14 @@ _zpun_main_deferred() {
     # below (e.g. read-only XDG_STATE_HOME, ENOSPC). The `[[ -e ]]` guard makes
     # it a no-op when the happy path already wrote pending; that's why we
     # don't clear the trap before exit.
-    trap '_zpun_rate_limit_release_lock; [[ -e "$_pending" ]] || print -r -- "err" > "$_pending"; rm -f "$_tmp"' INT TERM EXIT
+    #
+    # zsh signal traps resume execution after they run, so INT/TERM must
+    # `exit` explicitly; that in turn fires the EXIT trap. HUP is ignored:
+    # if the terminal closes mid-scan, the scan finishes, and its result
+    # becomes a leftover the next shell adopts.
+    trap '_zpun_rate_limit_release_lock; [[ -e "$_pending" ]] || print -r -- "err" > "$_pending"; rm -f "$_tmp"' EXIT
+    trap 'exit 1' INT TERM
+    trap '' HUP
 
     local results
     results=$(_zpun_collect_outdated)
@@ -425,7 +499,8 @@ _zpun_main_deferred() {
   ) 2>>"$(_zpun_debug_log_path)" &!
 
   typeset -g _ZPUN_PRECMD_ANNOUNCED=1
-  precmd_functions+=(_zpun_precmd_nag)
+  typeset -g _ZPUN_SCAN_IN_FLIGHT=1
+  precmd_functions=( ${precmd_functions:#_zpun_precmd_nag} _zpun_precmd_nag )
 }
 
 # Public subcommand: `zsh-pkg-update-nag --check-env` for diagnostics; `--now` to force.
